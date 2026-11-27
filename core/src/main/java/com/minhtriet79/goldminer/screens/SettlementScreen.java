@@ -11,7 +11,7 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.ScreenUtils;
-import com.badlogic.gdx.utils.viewport.ExtendViewport;
+import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.minhtriet79.goldminer.GoldMinerGame;
 import com.minhtriet79.goldminer.assets.AssetKey;
 import com.minhtriet79.goldminer.assets.Assets;
@@ -29,32 +29,26 @@ import com.minhtriet79.goldminer.persistence.SaveData;
  */
 public class SettlementScreen implements Screen {
 
+    private static final float VEGAS_W = 800f;
+    private static final float VEGAS_H = 600f;
+
     private final GoldMinerGame game;
     private final OrthographicCamera camera;
-    private final ExtendViewport viewport;
+    private final FitViewport viewport;
     private final Vector3 touchPoint = new Vector3();
 
     private final SettlementSummary summary;
     private final VegasButton playAgainButton;
-
-    private float viewLeft = 0f;
-    private float viewBottom = 0f;
-    private float viewWidth = WorldBounds.WORLD_WIDTH;
-    private float viewHeight = WorldBounds.WORLD_HEIGHT;
-    private float bgDrawX = 0f;
-    private float bgDrawY = 0f;
-    private float bgDrawW = WorldBounds.WORLD_WIDTH;
-    private float bgDrawH = WorldBounds.WORLD_HEIGHT;
 
     public SettlementScreen(GoldMinerGame game, SettlementSummary summary) {
         this.game = game;
         this.summary = summary;
 
         this.camera = new OrthographicCamera();
-        this.viewport = new ExtendViewport(WorldBounds.WORLD_WIDTH, WorldBounds.WORLD_HEIGHT, camera);
+        this.viewport = new FitViewport(VEGAS_W, VEGAS_H, camera);
 
         this.playAgainButton = new VegasButton(
-            174f, 18f, 132f, 26f,
+            312f, 34f, 176f, 40f,
             AssetKey.BTN_NEXT_UP, AssetKey.BTN_NEXT_OVER, AssetKey.BTN_NEXT_DOWN
         );
     }
@@ -70,17 +64,20 @@ public class SettlementScreen implements Screen {
     @Override
     public void render(float rawDt) {
         Math.min(rawDt, 0.05f);
+        if (Gdx.input.isKeyJustPressed(Input.Keys.F11)) {
+            game.toggleFullscreen();
+        }
         handleInput();
 
-        ScreenUtils.clear(0.08f, 0.06f, 0.04f, 1f);
-        viewport.apply();
+        ScreenUtils.clear(0f, 0f, 0f, 1f);
+        viewport.apply(true);
 
         SpriteBatch batch = game.getBatch();
         Assets assets = game.getAssets();
         Texture bg = assets.getTexture(AssetKey.BG_RESULT_W1);
-        BitmapFont banner = game.getBannerFont();
-        BitmapFont hud = game.getHudFont();
-        BitmapFont small = game.getSmallFont();
+        BitmapFont banner = game.getPlayBannerFont();
+        BitmapFont hud = game.getPlayHudFont();
+        BitmapFont small = game.getPlaySmallFont();
         SaveData save = game.getSaveData();
         AccountService accountService = game.getAccountService();
         AccountRecord activeAccount = accountService != null ? accountService.getActiveAccount() : null;
@@ -91,31 +88,35 @@ public class SettlementScreen implements Screen {
 
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
-        batch.draw(bg, bgDrawX, bgDrawY, bgDrawW, bgDrawH);
+        batch.draw(bg, 0f, 0f, VEGAS_W, VEGAS_H);
 
         banner.setColor(summary.completedWorld1 ? new Color(0.08f, 0.45f, 0.08f, 1f) : new Color(0.35f, 0.14f, 0.03f, 1f));
         String title = summary.completedWorld1 ? "CHINH PHUC WORLD 1 AUSTRALIA!" : "KET TOAN CHUYEN DAO VANG";
-        banner.draw(batch, title, 86f, 206f, 308f, Align.center, false);
+        banner.draw(batch, title, 140f, 456f, 520f, Align.center, false);
 
         hud.setColor(0.22f, 0.10f, 0.02f, 1f);
-        hud.draw(batch, "So man da vuot qua: " + summary.levelsCleared + " / 6", 86f, 172f, 308f, Align.center, false);
-        hud.draw(batch, "Tien Mo cuoi luot ($): $" + summary.finalMineMoney, 86f, 152f, 308f, Align.center, false);
-        hud.draw(batch, "Quy doi Tien Mo: +" + summary.convertedCoins + " Xu   |   Thuong vuot man: +" + summary.clearBonusCoins + " Xu", 86f, 132f, 308f, Align.center, false);
+        hud.draw(batch, "So man da vuot qua: " + summary.levelsCleared + " / 6", 140f, 388f, 520f, Align.center, false);
+        hud.draw(batch, "Tien Mo cuoi luot ($): $" + summary.finalMineMoney, 140f, 344f, 520f, Align.center, false);
+        hud.draw(batch, "Quy doi Tien Mo: +" + summary.convertedCoins + " Xu   |   Thuong vuot man: +" + summary.clearBonusCoins + " Xu", 120f, 300f, 560f, Align.center, false);
 
         hud.setColor(0.04f, 0.42f, 0.08f, 1f);
-        hud.draw(batch, "TONG NHAN DUOC: +" + summary.totalAwardedCoins + " XU", 86f, 110f, 308f, Align.center, false);
+        hud.draw(batch, "TONG NHAN DUOC: +" + summary.totalAwardedCoins + " XU", 140f, 250f, 520f, Align.center, false);
 
         small.setColor(0.18f, 0.10f, 0.03f, 1f);
         small.draw(
             batch,
             accountTag + "Vi Xu da luu: " + displayCoins + " Xu   |   Ky luc ($): $" + displayBestMine
                 + "   |   Man cao nhat: " + displayHighestLevel + "/6",
-            86f, 86f, 308f, Align.center, false
+            120f, 196f, 560f, Align.center, false
         );
 
         playAgainButton.draw(batch, assets, viewport, touchPoint);
         small.setColor(Color.WHITE);
-        small.draw(batch, "CHƠI LẠI TỪ MÀN 1 (ENTER)   |   ESC: MENU CHÍNH", 86f, 14f, 308f, Align.center, false);
+        small.draw(batch, "CHƠI LẠI TỪ MÀN 1 (ENTER)   |   ESC: MENU CHÍNH", 140f, 30f, 520f, Align.center, false);
+
+        batch.setColor(Color.WHITE);
+        batch.draw(assets.getTexture(AssetKey.UI_VEGAS_FRAME), 0f, 0f, VEGAS_W, VEGAS_H);
+
         batch.end();
     }
 
@@ -139,20 +140,9 @@ public class SettlementScreen implements Screen {
 
     @Override
     public void resize(int width, int height) {
-        viewport.update(width, height, false);
-        camera.position.set(WorldBounds.WORLD_WIDTH * 0.5f, WorldBounds.WORLD_HEIGHT * 0.5f, 0f);
+        viewport.update(width, height, true);
+        camera.position.set(VEGAS_W * 0.5f, VEGAS_H * 0.5f, 0f);
         camera.update();
-
-        viewWidth = viewport.getWorldWidth();
-        viewHeight = viewport.getWorldHeight();
-        viewLeft = camera.position.x - viewWidth * 0.5f;
-        viewBottom = camera.position.y - viewHeight * 0.5f;
-
-        float bgScale = Math.max(viewWidth / WorldBounds.WORLD_WIDTH, viewHeight / WorldBounds.WORLD_HEIGHT);
-        bgDrawW = WorldBounds.WORLD_WIDTH * bgScale;
-        bgDrawH = WorldBounds.WORLD_HEIGHT * bgScale;
-        bgDrawX = MenuTopHeader.computeCoverFillX(viewLeft, viewWidth, bgDrawW);
-        bgDrawY = MenuTopHeader.computeCoverFillY(viewBottom, viewHeight, bgDrawH);
     }
 
     @Override

@@ -19,11 +19,12 @@
       "y": 136.9,
       "value": 50,
       "weight": 3,
-      "radius": 4.2,
-      "drawWidth": 8.2,
-      "drawHeight": 7.6,
+      "radius": 7.57,
+      "drawWidth": 15.6,
+      "drawHeight": 12.94,
       "moveSpeed": 0.0,
-      "animated": false
+      "animated": false,
+      "scale": 1.0
     },
     {
       "objectN": 2,
@@ -33,11 +34,12 @@
       "y": 149.7,
       "value": 50,
       "weight": 3,
-      "radius": 4.2,
-      "drawWidth": 8.2,
-      "drawHeight": 7.6,
+      "radius": 7.57,
+      "drawWidth": 15.6,
+      "drawHeight": 12.94,
       "moveSpeed": 0.0,
-      "animated": false
+      "animated": false,
+      "scale": 1.0
     },
     {
       "objectN": 18,
@@ -47,11 +49,12 @@
       "y": 87.0,
       "value": 20,
       "weight": 7,
-      "radius": 7.6,
-      "drawWidth": 17.5,
-      "drawHeight": 14.2,
+      "radius": 9.52,
+      "drawWidth": 21.9,
+      "drawHeight": 17.8,
       "moveSpeed": 0.0,
-      "animated": false
+      "animated": false,
+      "scale": 1.0
     },
     {
       "objectN": 7,
@@ -75,11 +78,12 @@
       "y": 14.0,
       "value": 500,
       "weight": 9,
-      "radius": 16.0,
-      "drawWidth": 40.0,
-      "drawHeight": 27.0,
+      "radius": 17.75,
+      "drawWidth": 40.8,
+      "drawHeight": 32.36,
       "moveSpeed": 0.0,
-      "animated": false
+      "animated": false,
+      "scale": 1.0
     },
     {
       "objectN": 9,
@@ -89,11 +93,12 @@
       "y": 70.1,
       "value": 11,
       "weight": 8,
-      "radius": 9.0,
-      "drawWidth": 18.5,
-      "drawHeight": 19.0,
+      "radius": 10.18,
+      "drawWidth": 24.0,
+      "drawHeight": 18.34,
       "moveSpeed": 0.0,
-      "animated": false
+      "animated": false,
+      "scale": 1.0
     },
     {
       "objectN": 12,
@@ -117,11 +122,12 @@
       "y": 62.7,
       "value": 600,
       "weight": 2,
-      "radius": 4.8,
-      "drawWidth": 9.5,
-      "drawHeight": 9.0,
+      "radius": 9.17,
+      "drawWidth": 19.2,
+      "drawHeight": 16.18,
       "moveSpeed": 0.0,
-      "animated": false
+      "animated": false,
+      "scale": 1.0
     },
     {
       "objectN": 9,
@@ -131,11 +137,12 @@
       "y": 150.2,
       "value": 11,
       "weight": 8,
-      "radius": 9.0,
-      "drawWidth": 18.5,
-      "drawHeight": 19.0,
+      "radius": 10.18,
+      "drawWidth": 24.0,
+      "drawHeight": 18.34,
       "moveSpeed": 0.0,
-      "animated": false
+      "animated": false,
+      "scale": 1.0
     },
     {
       "objectN": 4,
@@ -145,11 +152,12 @@
       "y": 100.3,
       "value": 250,
       "weight": 8,
-      "radius": 10.8,
-      "drawWidth": 25.0,
-      "drawHeight": 20.0,
+      "radius": 12.08,
+      "drawWidth": 27.6,
+      "drawHeight": 22.65,
       "moveSpeed": 0.0,
-      "animated": false
+      "animated": false,
+      "scale": 1.0
     },
     {
       "objectN": 4,
@@ -159,11 +167,12 @@
       "y": 97.9,
       "value": 250,
       "weight": 8,
-      "radius": 10.8,
-      "drawWidth": 25.0,
-      "drawHeight": 20.0,
+      "radius": 12.08,
+      "drawWidth": 27.6,
+      "drawHeight": 22.65,
       "moveSpeed": 0.0,
-      "animated": false
+      "animated": false,
+      "scale": 1.0
     },
     {
       "objectN": 21,
@@ -173,11 +182,12 @@
       "y": 20.7,
       "value": 10,
       "weight": 3,
-      "radius": 10.5,
-      "drawWidth": 23.0,
-      "drawHeight": 24.2,
+      "radius": 11.49,
+      "drawWidth": 28.8,
+      "drawHeight": 22.65,
       "moveSpeed": 42.1,
-      "animated": true
+      "animated": true,
+      "scale": 1.0
     },
     {
       "objectN": 4,
@@ -187,11 +197,12 @@
       "y": 130.7,
       "value": 250,
       "weight": 8,
-      "radius": 10.8,
-      "drawWidth": 25.0,
-      "drawHeight": 20.0,
+      "radius": 12.08,
+      "drawWidth": 27.6,
+      "drawHeight": 22.65,
       "moveSpeed": 0.0,
-      "animated": false
+      "animated": false,
+      "scale": 1.0
     },
     {
       "objectN": 2,
@@ -201,11 +212,12 @@
       "y": 133.1,
       "value": 50,
       "weight": 3,
-      "radius": 4.2,
-      "drawWidth": 8.2,
-      "drawHeight": 7.6,
+      "radius": 7.57,
+      "drawWidth": 15.6,
+      "drawHeight": 12.94,
       "moveSpeed": 0.0,
-      "animated": false
+      "animated": false,
+      "scale": 1.0
     },
     {
       "objectN": 2,
@@ -215,11 +227,12 @@
       "y": 163.2,
       "value": 50,
       "weight": 3,
-      "radius": 4.2,
-      "drawWidth": 8.2,
-      "drawHeight": 7.6,
+      "radius": 7.57,
+      "drawWidth": 15.6,
+      "drawHeight": 12.94,
       "moveSpeed": 0.0,
-      "animated": false
+      "animated": false,
+      "scale": 1.0
     },
     {
       "objectN": 5,
@@ -229,11 +242,12 @@
       "y": 68.9,
       "value": 500,
       "weight": 9,
-      "radius": 16.0,
-      "drawWidth": 40.0,
-      "drawHeight": 27.0,
+      "radius": 17.75,
+      "drawWidth": 40.8,
+      "drawHeight": 32.36,
       "moveSpeed": 0.0,
-      "animated": false
+      "animated": false,
+      "scale": 1.0
     }
   ]
 }

@@ -20,7 +20,7 @@ import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Json;
 import com.badlogic.gdx.utils.ScreenUtils;
-import com.badlogic.gdx.utils.viewport.ExtendViewport;
+import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.minhtriet79.goldminer.GoldMinerGame;
 import com.minhtriet79.goldminer.assets.AssetKey;
 import com.minhtriet79.goldminer.assets.Assets;
@@ -53,14 +53,25 @@ import java.util.Comparator;
  */
 public class PlayScreen implements Screen {
 
+    private static final float VEGAS_W = 800f;
+    private static final float VEGAS_H = 600f;
+    private static final float HOLLOW_LEFT = 12f;
+    private static final float HOLLOW_RIGHT = 788f;
+    private static final float HOLLOW_BOTTOM = 52f;
+    private static final float HOLLOW_TOP = 588f;
+    private static final float MINE_SCREEN_BOTTOM = 52f;
+    private static final float MINE_SCREEN_TOP = 408f;
+    private static final float SX = VEGAS_W / WorldBounds.WORLD_WIDTH;
+    private static final float SY = (MINE_SCREEN_TOP - MINE_SCREEN_BOTTOM) / WorldBounds.MINE_TOP_Y;
+
     private static final float CART_DRAW_WIDTH = 42f;
     private static final float CART_DRAW_HEIGHT = 25.5f;
-    private static final float CABLE_THICKNESS = 1.4f;
+    private static final float CABLE_THICKNESS = 2.2f;
     private static final float THROW_ANIM_DURATION = 9f / 18f;
     private static final float STRENGTH_ANIM_DURATION = 10f / 18f;
     private static final float CLAW_WORLD_SCALE = 0.56f;
-    private static final float TOTAL_SIGN_CENTER_X = 366f;
-    private static final float TOTAL_SIGN_CENTER_Y = 247f;
+    private static final float TOTAL_SIGN_CENTER_X = 616f / SX;
+    private static final float TOTAL_SIGN_CENTER_Y = (552f - MINE_SCREEN_BOTTOM) / SY;
 
     private static final int MAX_EXPLOSIONS = 24;
     private static final int MAX_FLOATING_TEXTS = 24;
@@ -70,13 +81,8 @@ public class PlayScreen implements Screen {
     private final Runnable backToStudioAction;
     private final boolean mapMode;
     private final OrthographicCamera camera;
-    private final ExtendViewport viewport;
+    private final FitViewport viewport;
     private final Json json = new Json();
-
-    private float viewLeft = 0f;
-    private float viewBottom = 0f;
-    private float viewWidth = WorldBounds.WORLD_WIDTH;
-    private float viewHeight = WorldBounds.WORLD_HEIGHT;
 
     private final HookConfig hookConfig;
     private final LevelConfig levelConfig;
@@ -96,18 +102,21 @@ public class PlayScreen implements Screen {
     private final GlyphLayout glyphLayout = new GlyphLayout();
     private final TextureRegion[][] clawRegions = new TextureRegion[4][3];
 
-    // Authentic Vegas Top-HUD Buttons (adjusted 16:9 layout without bottom toolbar)
+    // Authentic 800x600 Vegas Bottom-Bar Controls (using original Vegas button sprites, never overlap sky)
     private final VegasButton pauseButton;
     private final VegasButton soundButton;
     private final VegasButton menuButton;
     private final VegasButton earlyNextButton;
-    private final Rectangle backToStudioRect = new Rectangle(4f, 255f, 96f, 12f);
+    private final VegasButton windowButton;
+    private final VegasButton helpButton;
+    private final Rectangle helpCloseRect = new Rectangle(332f, 200f, 136f, 36f);
+    private final Rectangle backToStudioRect = new Rectangle(180f, 566f, 150f, 20f);
 
-    // Debug strip hitboxes (when toggled on via F1)
-    private final Rectangle dbgNextRect = new Rectangle(6f, 2f, 82f, 12f);
-    private final Rectangle dbgCycleRect = new Rectangle(94f, 2f, 76f, 12f);
-    private final Rectangle dbgRichRect = new Rectangle(176f, 2f, 94f, 12f);
-    private final Rectangle dbgTimeRect = new Rectangle(276f, 2f, 74f, 12f);
+    // Debug strip hitboxes (when toggled on via F1, positioned above bottom bezel)
+    private final Rectangle dbgNextRect = new Rectangle(16f, 56f, 134f, 22f);
+    private final Rectangle dbgCycleRect = new Rectangle(158f, 56f, 120f, 22f);
+    private final Rectangle dbgRichRect = new Rectangle(286f, 56f, 154f, 22f);
+    private final Rectangle dbgTimeRect = new Rectangle(448f, 56f, 120f, 22f);
 
     private float cartX;
     private float cartMinX;
@@ -124,6 +133,7 @@ public class PlayScreen implements Screen {
     private float strengthAnimTimer;
     private float timerPulseTimer;
     private boolean paused;
+    private boolean helpOpen;
     private boolean transitionTriggered;
     private boolean debugBarVisible;
     private int earnedThisLevel;
@@ -169,7 +179,7 @@ public class PlayScreen implements Screen {
         this.backToStudioAction = backToStudioAction;
         this.mapMode = mapMode;
         this.camera = new OrthographicCamera();
-        this.viewport = new ExtendViewport(WorldBounds.WORLD_WIDTH, WorldBounds.WORLD_HEIGHT, camera);
+        this.viewport = new FitViewport(VEGAS_W, VEGAS_H, camera);
 
         this.hookConfig = json.fromJson(HookConfig.class, StudioFileHelper.resolveHookConfigFile());
         this.levelConfig = json.fromJson(
@@ -209,21 +219,29 @@ public class PlayScreen implements Screen {
             clawRegions[c][2] = new TextureRegion(assets.getTexture(AssetKey.clawKey(clawId, "retract")));
         }
 
-        this.pauseButton = new VegasButton(
-            112f, 254f, 38f, 12f,
-            AssetKey.BTN_PAUSE_UP, AssetKey.BTN_PAUSE_OVER, AssetKey.BTN_PAUSE_DOWN
-        );
-        this.soundButton = new VegasButton(
-            152f, 254f, 16f, 12f,
-            AssetKey.BTN_SOUND_ON_UP, AssetKey.BTN_SOUND_ON_OVER, AssetKey.BTN_SOUND_ON_DOWN
-        );
         this.menuButton = new VegasButton(
-            170f, 254f, 54f, 12f,
+            40f, 10f, 156f, 32f,
             AssetKey.BTN_MENU_UP, AssetKey.BTN_MENU_OVER, AssetKey.BTN_MENU_DOWN
         );
         this.earlyNextButton = new VegasButton(
-            200f, 237f, 58f, 13f,
+            212f, 10f, 156f, 32f,
             AssetKey.BTN_NEXT_UP, AssetKey.BTN_NEXT_OVER, AssetKey.BTN_NEXT_DOWN
+        );
+        this.windowButton = new VegasButton(
+            458f, 10f, 43f, 32f,
+            AssetKey.BTN_WINDOW_UP, AssetKey.BTN_WINDOW_OVER, AssetKey.BTN_WINDOW_DOWN
+        );
+        this.soundButton = new VegasButton(
+            508f, 10f, 43f, 32f,
+            AssetKey.BTN_SOUND_ON_UP, AssetKey.BTN_SOUND_ON_OVER, AssetKey.BTN_SOUND_ON_DOWN
+        );
+        this.pauseButton = new VegasButton(
+            561f, 10f, 102f, 32f,
+            AssetKey.BTN_PAUSE_UP, AssetKey.BTN_PAUSE_OVER, AssetKey.BTN_PAUSE_DOWN
+        );
+        this.helpButton = new VegasButton(
+            673f, 10f, 86f, 32f,
+            AssetKey.BTN_HELP_UP, AssetKey.BTN_HELP_OVER, AssetKey.BTN_HELP_DOWN
         );
         this.earlyNextButton.visible = false;
         syncSoundButtonTexture();
@@ -257,6 +275,22 @@ public class PlayScreen implements Screen {
         game.playMusic(AssetKey.BGM_W1, 0.42f);
     }
 
+    private static float toScreenX(float worldX) {
+        return worldX * SX;
+    }
+
+    private static float toScreenY(float worldY) {
+        return MINE_SCREEN_BOTTOM + worldY * SY;
+    }
+
+    private static float toWorldX(float screenX) {
+        return screenX / SX;
+    }
+
+    private static float toWorldY(float screenY) {
+        return (screenY - MINE_SCREEN_BOTTOM) / SY;
+    }
+
     @Override
     public void render(float rawDt) {
         float dt = Math.min(rawDt, 0.05f);
@@ -264,7 +298,7 @@ public class PlayScreen implements Screen {
             return;
         }
 
-        if (!paused) {
+        if (!paused && !helpOpen) {
             updateGameplay(dt);
         }
 
@@ -275,6 +309,26 @@ public class PlayScreen implements Screen {
 
     private boolean handleInput() {
         RunSession run = game.getRunSession();
+
+        if (Gdx.input.isKeyJustPressed(Input.Keys.F11)) {
+            game.toggleFullscreen();
+            return false;
+        }
+        if (helpOpen) {
+            if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE) || Gdx.input.isKeyJustPressed(Input.Keys.H)
+                || Gdx.input.isKeyJustPressed(Input.Keys.ENTER) || Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
+                helpOpen = false;
+                return false;
+            }
+            if (Gdx.input.justTouched()) {
+                touchPoint.set(Gdx.input.getX(), Gdx.input.getY(), 0f);
+                viewport.unproject(touchPoint);
+                if (helpCloseRect.contains(touchPoint.x, touchPoint.y) || helpButton.contains(touchPoint.x, touchPoint.y)) {
+                    helpOpen = false;
+                }
+            }
+            return false;
+        }
 
         if (backToStudioAction != null && Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
             transitionTriggered = true;
@@ -315,6 +369,13 @@ public class PlayScreen implements Screen {
         if (Gdx.input.isKeyJustPressed(Input.Keys.P) && !run.isLevelFinished()) {
             togglePause();
         }
+        if (Gdx.input.isKeyJustPressed(Input.Keys.H)) {
+            helpOpen = !helpOpen;
+            if (helpOpen) {
+                stopRetractSound();
+            }
+            return false;
+        }
         if (Gdx.input.isKeyJustPressed(Input.Keys.M)) {
             game.toggleMuted();
             syncSoundButtonTexture();
@@ -354,6 +415,15 @@ public class PlayScreen implements Screen {
                 }
             }
 
+            if (helpButton.contains(touchPoint.x, touchPoint.y)) {
+                helpOpen = true;
+                stopRetractSound();
+                return false;
+            }
+            if (windowButton.contains(touchPoint.x, touchPoint.y)) {
+                game.toggleFullscreen();
+                return false;
+            }
             if (pauseButton.contains(touchPoint.x, touchPoint.y)) {
                 if (!run.isLevelFinished()) {
                     togglePause();
@@ -383,8 +453,10 @@ public class PlayScreen implements Screen {
                 return true;
             }
 
-            if (!paused && !run.isLevelFinished()) {
-                handleWorldPointerDown(touchPoint.x, touchPoint.y);
+            if (!paused && !run.isLevelFinished()
+                && touchPoint.x >= HOLLOW_LEFT && touchPoint.x <= HOLLOW_RIGHT
+                && touchPoint.y >= HOLLOW_BOTTOM && touchPoint.y <= HOLLOW_TOP) {
+                handleWorldPointerDown(toWorldX(touchPoint.x), toWorldY(touchPoint.y));
             }
         }
         return false;
@@ -919,10 +991,14 @@ public class PlayScreen implements Screen {
     }
 
     private void renderWorld() {
-        ScreenUtils.clear(0.08f, 0.06f, 0.04f, 1f);
-        camera.position.set(WorldBounds.WORLD_WIDTH * 0.5f + screenShake.offsetX, WorldBounds.WORLD_HEIGHT * 0.5f + screenShake.offsetY, 0f);
+        ScreenUtils.clear(0f, 0f, 0f, 1f);
+        camera.position.set(
+            VEGAS_W * 0.5f + screenShake.offsetX * SX,
+            VEGAS_H * 0.5f + screenShake.offsetY * SY,
+            0f
+        );
         camera.update();
-        viewport.apply();
+        viewport.apply(true);
 
         SpriteBatch batch = game.getBatch();
         Assets assets = game.getAssets();
@@ -940,38 +1016,13 @@ public class PlayScreen implements Screen {
 
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
-
-        // 1. Backgrounds & level-authentic Track (filled edge-to-edge on ExtendViewport -> zero black bars)
-        float viewRight = viewLeft + viewWidth;
-        float viewTop = viewBottom + viewHeight;
-        Texture white = game.getWhitePixel();
-        if (viewBottom < 0f) {
-            batch.setColor(0.24f, 0.13f, 0.06f, 1f);
-            batch.draw(white, viewLeft - 4f, viewBottom - 4f, viewWidth + 8f, -viewBottom + 6f);
-        }
-        if (viewTop > WorldBounds.WORLD_HEIGHT) {
-            batch.setColor(0.18f, 0.34f, 0.56f, 1f);
-            batch.draw(white, viewLeft - 4f, WorldBounds.WORLD_HEIGHT - 2f, viewWidth + 8f, viewTop - WorldBounds.WORLD_HEIGHT + 6f);
-        }
         batch.setColor(Color.WHITE);
-        if (viewLeft < 0f) {
-            float extW = -viewLeft + 4f;
-            batch.draw(mine, viewLeft - 4f, WorldBounds.MINE_BOTTOM_Y, extW, WorldBounds.MINE_TOP_Y);
-            batch.draw(cave, viewLeft - 4f, WorldBounds.MINE_TOP_Y, extW, WorldBounds.HUD_BOTTOM_Y - WorldBounds.MINE_TOP_Y);
-            batch.draw(track, viewLeft - 4f, WorldBounds.TRACK_Y - 1.5f, extW, 32f);
-            batch.draw(sky, viewLeft - 4f, WorldBounds.HUD_BOTTOM_Y, extW, WorldBounds.HUD_TOP_HEIGHT);
-        }
-        if (viewRight > WorldBounds.WORLD_WIDTH) {
-            float extW = viewRight - WorldBounds.WORLD_WIDTH + 4f;
-            batch.draw(mine, WorldBounds.WORLD_WIDTH, WorldBounds.MINE_BOTTOM_Y, extW, WorldBounds.MINE_TOP_Y);
-            batch.draw(cave, WorldBounds.WORLD_WIDTH, WorldBounds.MINE_TOP_Y, extW, WorldBounds.HUD_BOTTOM_Y - WorldBounds.MINE_TOP_Y);
-            batch.draw(track, WorldBounds.WORLD_WIDTH, WorldBounds.TRACK_Y - 1.5f, extW, 32f);
-            batch.draw(sky, WorldBounds.WORLD_WIDTH, WorldBounds.HUD_BOTTOM_Y, extW, WorldBounds.HUD_TOP_HEIGHT);
-        }
-        batch.draw(mine, 0f, WorldBounds.MINE_BOTTOM_Y, WorldBounds.WORLD_WIDTH, WorldBounds.MINE_TOP_Y);
-        batch.draw(cave, 0f, WorldBounds.MINE_TOP_Y, WorldBounds.WORLD_WIDTH, WorldBounds.HUD_BOTTOM_Y - WorldBounds.MINE_TOP_Y);
-        batch.draw(track, 0f, WorldBounds.TRACK_Y - 1.5f, WorldBounds.WORLD_WIDTH, 32f);
-        batch.draw(sky, 0f, WorldBounds.HUD_BOTTOM_Y, WorldBounds.WORLD_WIDTH, WorldBounds.HUD_TOP_HEIGHT);
+
+        // Layer 1: Native 800x600 4:3 Vegas Playfield (strictly bottom-to-top, zero stretching or mirroring)
+        batch.draw(mine, 0f, 42f, 800f, 370f);
+        batch.draw(cave, 0f, 412f, 800f, 93f);
+        batch.draw(track, 0f, 408f, 800f, 73f);
+        batch.draw(sky, 0f, 497f, 800f, 103f);
 
         // 2. Mine items & animated creatures
         for (int i = 0; i < items.size; i++) {
@@ -979,44 +1030,46 @@ public class PlayScreen implements Screen {
             if (!item.active) {
                 continue;
             }
+            float ix = toScreenX(item.bounds.x);
+            float iy = toScreenY(item.bounds.y);
+            float iw = item.drawWidth * SX;
+            float ih = item.drawHeight * SY;
             if (item.animated) {
                 Animation<TextureRegion> anim = assets.getAnimation(item.assetKey);
                 TextureRegion frame = anim.getKeyFrame(item.animTime, true);
                 batch.draw(
                     frame,
-                    item.bounds.x - item.drawWidth * 0.5f,
-                    item.bounds.y - item.drawHeight * 0.5f,
-                    item.drawWidth * 0.5f,
-                    item.drawHeight * 0.5f,
-                    item.drawWidth,
-                    item.drawHeight,
+                    ix - iw * 0.5f,
+                    iy - ih * 0.5f,
+                    iw * 0.5f,
+                    ih * 0.5f,
+                    iw,
+                    ih,
                     item.facingRight ? -1f : 1f,
                     1f,
                     0f
                 );
             } else {
                 Texture tex = assets.getTexture(item.assetKey);
-                batch.draw(
-                    tex,
-                    item.bounds.x - item.drawWidth * 0.5f,
-                    item.bounds.y - item.drawHeight * 0.5f,
-                    item.drawWidth,
-                    item.drawHeight
-                );
+                batch.draw(tex, ix - iw * 0.5f, iy - ih * 0.5f, iw, ih);
             }
         }
 
         // 3. Miner (spool-anchored proportionally) & Cart
-        float minerDrawX = cartX - minerDef.drawWidth * minerDef.anchorX;
-        float minerDrawY = WorldBounds.TRACK_Y + 11f - minerDef.drawHeight * minerDef.anchorY;
-        batch.draw(minerFrame, minerDrawX, minerDrawY, minerDef.drawWidth, minerDef.drawHeight);
+        float minerW = minerDef.drawWidth * SX;
+        float minerH = minerDef.drawHeight * SY;
+        float minerDrawX = toScreenX(cartX) - minerW * minerDef.anchorX;
+        float minerDrawY = toScreenY(WorldBounds.TRACK_Y + 11f) - minerH * minerDef.anchorY;
+        batch.draw(minerFrame, minerDrawX, minerDrawY, minerW, minerH);
 
+        float cartW = CART_DRAW_WIDTH * SX;
+        float cartH = CART_DRAW_HEIGHT * SY;
         batch.draw(
             cart,
-            cartX - CART_DRAW_WIDTH * 0.5f,
-            WorldBounds.TRACK_Y + 2f,
-            CART_DRAW_WIDTH,
-            CART_DRAW_HEIGHT
+            toScreenX(cartX) - cartW * 0.5f,
+            toScreenY(WorldBounds.TRACK_Y + 2f),
+            cartW,
+            cartH
         );
 
         // 4. Cable, Laser sightline, Held item, Claw, and Flying Dynamite
@@ -1025,12 +1078,14 @@ public class PlayScreen implements Screen {
             Animation<TextureRegion> dynAnim = assets.getAnimation(AssetKey.FX_DYNAMITE_FLY);
             ThemeConfig.AnimationDef dynDef = assets.getAnimationDef(AssetKey.FX_DYNAMITE_FLY);
             TextureRegion dynFrame = dynAnim.getKeyFrame(fxTime, true);
+            float dw = dynDef.drawWidth * SX;
+            float dh = dynDef.drawHeight * SY;
             batch.draw(
                 dynFrame,
-                flyingDynamite.x - dynDef.drawWidth * 0.5f,
-                flyingDynamite.y - dynDef.drawHeight * 0.5f,
-                dynDef.drawWidth,
-                dynDef.drawHeight
+                toScreenX(flyingDynamite.x) - dw * 0.5f,
+                toScreenY(flyingDynamite.y) - dh * 0.5f,
+                dw,
+                dh
             );
         }
 
@@ -1043,27 +1098,35 @@ public class PlayScreen implements Screen {
             Animation<TextureRegion> fxAnim = assets.getAnimation(fx.animKey);
             ThemeConfig.AnimationDef fxDef = assets.getAnimationDef(fx.animKey);
             TextureRegion fxFrame = fxAnim.getKeyFrame(fx.elapsed, false);
+            float fw = fxDef.drawWidth * SX;
+            float fh = fxDef.drawHeight * SY;
             batch.draw(
                 fxFrame,
-                fx.x - fxDef.drawWidth * fxDef.anchorX,
-                fx.y - fxDef.drawHeight * fxDef.anchorY,
-                fxDef.drawWidth,
-                fxDef.drawHeight
+                toScreenX(fx.x) - fw * fxDef.anchorX,
+                toScreenY(fx.y) - fh * fxDef.anchorY,
+                fw,
+                fh
             );
         }
 
-        // 6. Top HUD overlays (stabilized without shake)
+        // 6. Rounded Golden Vegas Frame & 44px Bottom Control Bar
+        drawVegasFrameAndBottomBar(batch, assets);
+
+        // 7. Top HUD overlays (cleanly separated: Logo/LVL left, Dynamite/Gems mid, TARGET/TOTAL/TIMER right)
         drawTopHud(batch, assets, run);
 
-        // 7. Floating Cash & Banners
+        // 8. Floating Cash & Banners
         drawFloatingTexts(batch);
         if (mysteryBannerTimer > 0f) {
             drawMysteryBanner(batch);
         }
 
-        // 8. Pause & Debug Strip
+        // 9. Pause, Help & Debug Strip
         if (paused) {
             drawPauseOverlay(batch);
+        }
+        if (helpOpen) {
+            drawHelpOverlay(batch, assets);
         }
         if (debugBarVisible) {
             drawDebugBar(batch);
@@ -1075,25 +1138,30 @@ public class PlayScreen implements Screen {
     private void drawCableAndHook(SpriteBatch batch, Assets assets, RunSession run) {
         Vector2 pivot = hook.getPivot();
         Vector2 tip = hook.getTip();
-        cableDelta.set(tip.x - pivot.x, tip.y - pivot.y);
+        float px = toScreenX(pivot.x);
+        float py = toScreenY(pivot.y);
+        float tx = toScreenX(tip.x);
+        float ty = toScreenY(tip.y);
+        cableDelta.set(tx - px, ty - py);
         float len = cableDelta.len();
+        float visualAngleDeg = cableDelta.angleDeg() + 90f;
         Texture white = game.getWhitePixel();
 
         // Laser sightline when Laser Claw is active and swinging
         if (run.getActiveClaw() == ClawType.LASER && hook.getState() == HookState.SWINGING) {
-            float beamLen = 285f;
+            float beamLen = 520f;
             batch.setColor(1f, 0.15f, 0.12f, 0.52f);
             batch.draw(
                 white,
-                tip.x - 0.6f,
-                tip.y - beamLen,
-                0.6f,
+                tx - 1.0f,
+                ty - beamLen,
+                1.0f,
                 beamLen,
-                1.2f,
+                2.0f,
                 beamLen,
                 1f,
                 1f,
-                hook.getAngleDeg(),
+                visualAngleDeg,
                 0,
                 0,
                 1,
@@ -1108,15 +1176,15 @@ public class PlayScreen implements Screen {
         batch.setColor(0.14f, 0.12f, 0.10f, 1f);
         batch.draw(
             white,
-            pivot.x - CABLE_THICKNESS * 0.5f,
-            pivot.y - len,
+            px - CABLE_THICKNESS * 0.5f,
+            py - len,
             CABLE_THICKNESS * 0.5f,
             len,
             CABLE_THICKNESS,
             len,
             1f,
             1f,
-            hook.getAngleDeg(),
+            visualAngleDeg,
             0,
             0,
             1,
@@ -1129,29 +1197,19 @@ public class PlayScreen implements Screen {
         // Held item tucked tightly in claw jaws along rope direction
         MineItem held = hook.getAttachedItem();
         if (held != null) {
-            float rad = hook.getAngleDeg() * MathUtils.degreesToRadians;
-            float offset = 4.5f + held.drawHeight * 0.32f;
-            float itemCx = tip.x + MathUtils.sin(rad) * offset;
-            float itemCy = tip.y - MathUtils.cos(rad) * offset;
+            float rad = visualAngleDeg * MathUtils.degreesToRadians;
+            float iw = held.drawWidth * SX;
+            float ih = held.drawHeight * SY;
+            float offset = 8f + ih * 0.32f;
+            float itemCx = tx + MathUtils.sin(rad) * offset;
+            float itemCy = ty - MathUtils.cos(rad) * offset;
             if (held.animated) {
                 Animation<TextureRegion> anim = assets.getAnimation(held.assetKey);
                 TextureRegion frame = anim.getKeyFrame(fxTime, true);
-                batch.draw(
-                    frame,
-                    itemCx - held.drawWidth * 0.5f,
-                    itemCy - held.drawHeight * 0.5f,
-                    held.drawWidth,
-                    held.drawHeight
-                );
+                batch.draw(frame, itemCx - iw * 0.5f, itemCy - ih * 0.5f, iw, ih);
             } else {
                 Texture heldTex = assets.getTexture(held.assetKey);
-                batch.draw(
-                    heldTex,
-                    itemCx - held.drawWidth * 0.5f,
-                    itemCy - held.drawHeight * 0.5f,
-                    held.drawWidth,
-                    held.drawHeight
-                );
+                batch.draw(heldTex, itemCx - iw * 0.5f, itemCy - ih * 0.5f, iw, ih);
             }
         }
 
@@ -1163,95 +1221,110 @@ public class PlayScreen implements Screen {
             case RETRACTING, BRAKING -> 2;
         };
         TextureRegion clawRegion = clawRegions[clawIdx][stateIdx];
-        float clawW = clawRegion.getRegionWidth() * CLAW_WORLD_SCALE;
-        float clawH = clawRegion.getRegionHeight() * CLAW_WORLD_SCALE;
+        float clawW = clawRegion.getRegionWidth() * CLAW_WORLD_SCALE * SX;
+        float clawH = clawRegion.getRegionHeight() * CLAW_WORLD_SCALE * SY;
         batch.draw(
             clawRegion,
-            tip.x - clawW * 0.5f,
-            tip.y - clawH,
+            tx - clawW * 0.5f,
+            ty - clawH,
             clawW * 0.5f,
             clawH,
             clawW,
             clawH,
             1f,
             1f,
-            hook.getAngleDeg()
+            visualAngleDeg
         );
+    }
+
+    private void drawVegasFrameAndBottomBar(SpriteBatch batch, Assets assets) {
+        Texture white = game.getWhitePixel();
+
+        // Layer 3: Authentic 800x600 hollow golden Vegas bezel (center_alpha = 0, NEVER covers playfield)
+        batch.setColor(Color.WHITE);
+        batch.draw(assets.getTexture(AssetKey.UI_VEGAS_FRAME), 0f, 0f, VEGAS_W, VEGAS_H);
+
+        // Authentic Vegas Bottom-Bar Buttons (y = 10..42 inside the 52px bottom bezel)
+        menuButton.draw(batch, assets, viewport, touchPoint);
+        earlyNextButton.draw(batch, assets, viewport, touchPoint);
+        windowButton.draw(batch, assets, viewport, touchPoint);
+        soundButton.draw(batch, assets, viewport, touchPoint);
+        pauseButton.draw(batch, assets, viewport, touchPoint);
+        helpButton.draw(batch, assets, viewport, touchPoint);
+
+        if (game.isMuted()) {
+            batch.setColor(0.95f, 0.15f, 0.15f, 0.95f);
+            batch.draw(white, soundButton.bounds.x + 8f, soundButton.bounds.y + 15f, 0f, 1f, 28f, 3f, 1f, 1f, 35f, 0, 0, 1, 1, false, false);
+            batch.setColor(Color.WHITE);
+        }
     }
 
     private void drawTopHud(SpriteBatch batch, Assets assets, RunSession run) {
         Texture white = game.getWhitePixel();
-        BitmapFont hudFont = game.getHudFont();
-        BitmapFont smallFont = game.getSmallFont();
+        BitmapFont playHud = game.getPlayHudFont();
+        BitmapFont playSmall = game.getPlaySmallFont();
 
-        // Mask baked "60" inside TIMER black circle on bg_sky_w1
-        batch.setColor(0f, 0f, 0f, 1f);
-        batch.draw(white, 411f, 240f, 18f, 14f);
+        // Layer 4: Marquee Vegas Logo top-left above frame corner (matches original 800x600 frames/342)
         batch.setColor(Color.WHITE);
+        batch.draw(assets.getTexture(AssetKey.UI_VEGAS_LOGO), 12f, 506f, 158f, 84f);
 
         if (backToStudioAction != null) {
             batch.setColor(0.08f, 0.14f, 0.25f, 0.90f);
             batch.draw(white, backToStudioRect.x, backToStudioRect.y, backToStudioRect.width, backToStudioRect.height);
             batch.setColor(Color.WHITE);
-            smallFont.setColor(Color.CYAN);
-            smallFont.draw(batch, "<- BACK TO STUDIO", backToStudioRect.x, backToStudioRect.y + 8.5f, backToStudioRect.width, Align.center, false);
-        }
-
-        // Authentic Vegas Buttons
-        pauseButton.draw(batch, assets, viewport, touchPoint);
-        soundButton.draw(batch, assets, viewport, touchPoint);
-        menuButton.draw(batch, assets, viewport, touchPoint);
-        earlyNextButton.draw(batch, assets, viewport, touchPoint);
-
-        // Muted visual slash indicator
-        if (game.isMuted()) {
-            batch.setColor(0.95f, 0.15f, 0.15f, 0.95f);
-            batch.draw(white, soundButton.bounds.x + 2f, soundButton.bounds.y + 5.5f, 0f, 0.5f, 13f, 1.3f, 1f, 1f, 35f, 0, 0, 1, 1, false, false);
+            playSmall.setColor(Color.CYAN);
+            playSmall.draw(batch, "<- BACK TO STUDIO", backToStudioRect.x, backToStudioRect.y + 16f, backToStudioRect.width, Align.center, false);
+        } else {
+            // Clean LVL X/6 pill next to Vegas marquee logo (never overlaps dynamite or logo)
+            batch.setColor(0.24f, 0.12f, 0.03f, 0.88f);
+            batch.draw(white, 180f, 566f, 74f, 20f);
+            batch.setColor(0.95f, 0.72f, 0.24f, 1f);
+            batch.draw(white, 180f, 566f, 74f, 2f);
             batch.setColor(Color.WHITE);
+            playSmall.setColor(Color.GOLD);
+            playSmall.draw(batch, levelBadgeText, 180f, 581f, 74f, Align.center, false);
         }
 
-        // Level badge (LVL X/6) & Real Dynamite Stick icons neatly in sky band
-        batch.setColor(0.20f, 0.12f, 0.04f, 0.85f);
-        batch.draw(white, 112f, 237f, 36f, 12f);
-        batch.setColor(Color.WHITE);
-        smallFont.setColor(Color.GOLD);
-        smallFont.draw(batch, levelBadgeText, 112f, 245.5f, 36f, Align.center, false);
-
+        // Dynamite sticks HUD row cleanly separated right of LVL badge
         Texture dynIcon = assets.getTexture(AssetKey.UI_DYNAMITE_ICON);
         int dynCount = run.getDynamiteCount();
         int visibleSticks = Math.min(6, dynCount);
-        for (int s = 0; s < visibleSticks; s++) {
-            batch.draw(dynIcon, 151f + s * 7.5f, 236.5f, 6.5f, 12.5f);
-        }
-        if (dynCount > 6) {
-            smallFont.setColor(Color.ORANGE);
-            smallFont.draw(batch, "x" + dynCount, 195f, 245f);
+        if (visibleSticks > 0) {
+            for (int s = 0; s < visibleSticks; s++) {
+                batch.draw(dynIcon, 262f + s * 14f, 558f, 12f, 24f);
+            }
+            if (dynCount > 6) {
+                playSmall.setColor(Color.ORANGE);
+                playSmall.draw(batch, "x" + dynCount, 346f, 575f);
+            }
         }
 
-        // 4-Gem Collector HUD strip on levels containing Gems (Level 6)
+        // 4-Gem Collector HUD strip below dynamite when level has gems (Level 6)
         if (levelHasGems) {
             drawGemTracker(batch, assets, run);
         }
 
-        // TARGET sign
-        hudFont.setColor(0.25f, 0.10f, 0.02f, 1f);
-        hudFont.draw(batch, goalText, 272f, 250f, 52f, Align.center, false);
+        // TARGET wooden sign on bg_sky_w1
+        playHud.setColor(0.25f, 0.10f, 0.02f, 1f);
+        playHud.draw(batch, goalText, 480f, 558f, 58f, Align.center, false);
 
-        // TOTAL sign (green highlight once target reached)
-        hudFont.setColor(run.isGoalMet() ? new Color(0.05f, 0.52f, 0.06f, 1f) : new Color(0.25f, 0.10f, 0.02f, 1f));
-        hudFont.draw(batch, scoreText, 342f, 250f, 48f, Align.center, false);
+        // TOTAL wooden sign on bg_sky_w1 (green highlight once target reached)
+        playHud.setColor(run.isGoalMet() ? new Color(0.05f, 0.52f, 0.06f, 1f) : new Color(0.25f, 0.10f, 0.02f, 1f));
+        playHud.draw(batch, scoreText, 584f, 554f, 66f, Align.center, false);
 
-        // TIMER circle with pulsing red scale at <= 5s
+        // Clean round black TIMER stone dial centered via GlyphLayout (circle center ~ 695, 549)
         int secs = run.getDisplayedSeconds();
         if (secs <= hookConfig.countdownWarningSec) {
-            float pulse = 1.0f + (timerPulseTimer / 0.45f) * 0.30f;
-            hudFont.getData().setScale(pulse);
-            hudFont.setColor(1f, 0.20f, 0.18f, 1f);
-            hudFont.draw(batch, timerText, 408f, 250f + (pulse - 1f) * 3f, 24f, Align.center, false);
-            hudFont.getData().setScale(1.0f);
+            float pulse = 1.0f + (timerPulseTimer / 0.45f) * 0.25f;
+            playHud.getData().setScale(pulse);
+            playHud.setColor(1f, 0.20f, 0.18f, 1f);
+            glyphLayout.setText(playHud, timerText);
+            playHud.draw(batch, glyphLayout, 695f - glyphLayout.width * 0.5f, 549f + glyphLayout.height * 0.5f);
+            playHud.getData().setScale(1.0f);
         } else {
-            hudFont.setColor(0.20f, 1.0f, 0.25f, 1f);
-            hudFont.draw(batch, timerText, 408f, 250f, 24f, Align.center, false);
+            playHud.setColor(0.20f, 1.0f, 0.25f, 1f);
+            glyphLayout.setText(playHud, timerText);
+            playHud.draw(batch, glyphLayout, 695f - glyphLayout.width * 0.5f, 549f + glyphLayout.height * 0.5f);
         }
 
         batch.setColor(Color.WHITE);
@@ -1259,8 +1332,11 @@ public class PlayScreen implements Screen {
 
     private void drawGemTracker(SpriteBatch batch, Assets assets, RunSession run) {
         Texture white = game.getWhitePixel();
-        batch.setColor(0.08f, 0.06f, 0.04f, 0.65f);
-        batch.draw(white, 434f, 248f, 42f, 16f);
+        // Brighter warm wooden collector board with golden rim
+        batch.setColor(0.84f, 0.64f, 0.34f, 0.95f);
+        batch.draw(white, 340f, 522f, 88f, 32f);
+        batch.setColor(0.58f, 0.39f, 0.19f, 0.95f);
+        batch.draw(white, 342f, 524f, 84f, 28f);
 
         for (int g = 0; g < 4; g++) {
             int objN = 23 + g;
@@ -1271,86 +1347,113 @@ public class PlayScreen implements Screen {
                 default -> AssetKey.GEM_4;
             };
             boolean hasGem = run.isGemCollected(objN);
-            batch.setColor(1f, 1f, 1f, hasGem ? 1f : 0.24f);
-            batch.draw(assets.getTexture(key), 436f + g * 9.8f, 251f, 8.5f, 10f);
+            batch.setColor(1f, 1f, 1f, hasGem ? 1f : 0.42f);
+            batch.draw(assets.getTexture(key), 347f + g * 19.5f, 528f, 16f, 20f);
         }
         batch.setColor(Color.WHITE);
     }
 
     private void drawFloatingTexts(SpriteBatch batch) {
-        BitmapFont floatingFont = game.getFloatingFont();
+        BitmapFont playHud = game.getPlayHudFont();
         for (int i = 0; i < MAX_FLOATING_TEXTS; i++) {
             FloatingText ft = floatingTextPool[i];
             if (!ft.active) {
                 continue;
             }
-            floatingFont.getData().setScale(ft.scale);
-            floatingFont.setColor(ft.color);
-            glyphLayout.setText(floatingFont, ft.text);
-            floatingFont.draw(batch, glyphLayout, ft.x - glyphLayout.width * 0.5f, ft.y);
+            playHud.getData().setScale(ft.scale);
+            playHud.setColor(ft.color);
+            glyphLayout.setText(playHud, ft.text);
+            playHud.draw(batch, glyphLayout, toScreenX(ft.x) - glyphLayout.width * 0.5f, toScreenY(ft.y));
         }
-        floatingFont.getData().setScale(1.0f);
+        playHud.getData().setScale(1.0f);
     }
 
     private void drawMysteryBanner(SpriteBatch batch) {
         Texture white = game.getWhitePixel();
-        BitmapFont small = game.getSmallFont();
-        batch.setColor(0.10f, 0.06f, 0.02f, 0.86f);
-        batch.draw(white, 130f, 210f, 220f, 15f);
+        BitmapFont playSmall = game.getPlaySmallFont();
+        batch.setColor(0.10f, 0.06f, 0.02f, 0.88f);
+        batch.draw(white, 200f, 466f, 400f, 28f);
         batch.setColor(Color.WHITE);
-        small.setColor(Color.GOLD);
-        small.draw(batch, mysteryBannerText, 130f, 220f, 220f, Align.center, false);
+        playSmall.setColor(Color.GOLD);
+        playSmall.draw(batch, mysteryBannerText, 200f, 486f, 400f, Align.center, false);
     }
 
     private void drawPauseOverlay(SpriteBatch batch) {
         Texture white = game.getWhitePixel();
-        BitmapFont banner = game.getBannerFont();
-        BitmapFont hud = game.getHudFont();
-        batch.setColor(0f, 0f, 0f, 0.58f);
-        batch.draw(white, 0f, 0f, WorldBounds.WORLD_WIDTH, WorldBounds.HUD_BOTTOM_Y);
+        BitmapFont playBanner = game.getPlayBannerFont();
+        BitmapFont playHud = game.getPlayHudFont();
+        float hollowW = HOLLOW_RIGHT - HOLLOW_LEFT;
+        float hollowH = HOLLOW_TOP - HOLLOW_BOTTOM;
+        batch.setColor(0f, 0f, 0f, 0.60f);
+        batch.draw(white, HOLLOW_LEFT, HOLLOW_BOTTOM, hollowW, hollowH);
         batch.setColor(Color.WHITE);
-        banner.setColor(Color.GOLD);
-        banner.draw(batch, "TAM DUNG", 0f, 135f, WorldBounds.WORLD_WIDTH, Align.center, false);
-        hud.setColor(Color.WHITE);
-        hud.draw(batch, "Bam PAUSE hoac phim P de tiep tuc", 0f, 104f, WorldBounds.WORLD_WIDTH, Align.center, false);
+        playBanner.setColor(Color.GOLD);
+        playBanner.draw(batch, "TẠM DỪNG", HOLLOW_LEFT, 340f, hollowW, Align.center, false);
+        playHud.setColor(Color.WHITE);
+        playHud.draw(batch, "Bấm PAUSE hoặc phím P để tiếp tục", HOLLOW_LEFT, 290f, hollowW, Align.center, false);
+    }
+
+    private void drawHelpOverlay(SpriteBatch batch, Assets assets) {
+        Texture white = game.getWhitePixel();
+        BitmapFont playBanner = game.getPlayBannerFont();
+        BitmapFont playSmall = game.getPlaySmallFont();
+        float hollowW = HOLLOW_RIGHT - HOLLOW_LEFT;
+        float hollowH = HOLLOW_TOP - HOLLOW_BOTTOM;
+        batch.setColor(0f, 0f, 0f, 0.65f);
+        batch.draw(white, HOLLOW_LEFT, HOLLOW_BOTTOM, hollowW, hollowH);
+        batch.setColor(Color.WHITE);
+        batch.draw(assets.getTexture(AssetKey.UI_MODAL_PANEL), 150f, 175f, 500f, 265f);
+
+        playBanner.setColor(Color.GOLD);
+        playBanner.draw(batch, "HƯỚNG DẪN ĐÀO VÀNG", 170f, 412f, 460f, Align.center, false);
+
+        playSmall.setColor(0.98f, 0.94f, 0.80f, 1f);
+        playSmall.draw(batch,
+            "• A / D hoặc Mũi tên Trái / Phải: Di chuyển xe goòng\n"
+                + "• Space / S / Xuống hoặc Click vùng đất: Thả ngoàm gắp\n"
+                + "• W / Lên: Ném thuốc nổ phá đá nặng đang kéo\n"
+                + "• P: Tạm dừng   |   M: Tắt/bật tiếng   |   F11: Toàn màn hình",
+            180f, 366f, 440f, Align.left, true);
+
+        boolean overClose = helpCloseRect.contains(touchPoint.x, touchPoint.y);
+        batch.draw(assets.getTexture(overClose ? AssetKey.UI_BTN_GREEN_OVER : AssetKey.UI_BTN_GREEN_UP),
+            helpCloseRect.x, helpCloseRect.y, helpCloseRect.width, helpCloseRect.height);
+        playSmall.setColor(Color.WHITE);
+        playSmall.draw(batch, "ĐÓNG", helpCloseRect.x, helpCloseRect.y + 24f, helpCloseRect.width, Align.center, false);
     }
 
     private void drawDebugBar(SpriteBatch batch) {
         Texture white = game.getWhitePixel();
-        BitmapFont small = game.getSmallFont();
+        BitmapFont playSmall = game.getPlaySmallFont();
+        float hollowW = HOLLOW_RIGHT - HOLLOW_LEFT;
 
         batch.setColor(0.05f, 0.05f, 0.08f, 0.88f);
-        batch.draw(white, 0f, 0f, WorldBounds.WORLD_WIDTH, 16f);
+        batch.draw(white, HOLLOW_LEFT, HOLLOW_BOTTOM, hollowW, 30f);
 
-        drawDbgBtn(batch, small, dbgNextRect, "F2: NEXT>>Shop");
-        drawDbgBtn(batch, small, dbgCycleRect, "F3: LVL +1");
-        drawDbgBtn(batch, small, dbgRichRect, "F4: +$1K/+3TNT");
-        drawDbgBtn(batch, small, dbgTimeRect, "F5: TIME=6s");
+        drawDbgBtn(batch, playSmall, dbgNextRect, "F2: NEXT>>Shop");
+        drawDbgBtn(batch, playSmall, dbgCycleRect, "F3: LVL +1");
+        drawDbgBtn(batch, playSmall, dbgRichRect, "F4: +$1K/+3TNT");
+        drawDbgBtn(batch, playSmall, dbgTimeRect, "F5: TIME=6s");
 
-        small.setColor(Color.LIGHT_GRAY);
-        small.draw(batch, "F1: An Debug", 358f, 11f, 118f, Align.right, false);
+        playSmall.setColor(Color.LIGHT_GRAY);
+        playSmall.draw(batch, "F1: Ẩn Debug", 580f, 72f, 200f, Align.right, false);
         batch.setColor(Color.WHITE);
     }
 
-    private void drawDbgBtn(SpriteBatch batch, BitmapFont small, Rectangle rect, String text) {
+    private void drawDbgBtn(SpriteBatch batch, BitmapFont playSmall, Rectangle rect, String text) {
         Texture white = game.getWhitePixel();
         batch.setColor(0.22f, 0.25f, 0.34f, 0.95f);
         batch.draw(white, rect.x, rect.y, rect.width, rect.height);
         batch.setColor(Color.WHITE);
-        small.setColor(Color.YELLOW);
-        small.draw(batch, text, rect.x, rect.y + 9f, rect.width, Align.center, false);
+        playSmall.setColor(Color.YELLOW);
+        playSmall.draw(batch, text, rect.x, rect.y + 16f, rect.width, Align.center, false);
     }
 
     @Override
     public void resize(int width, int height) {
-        viewport.update(width, height, false);
-        camera.position.set(WorldBounds.WORLD_WIDTH * 0.5f, WorldBounds.WORLD_HEIGHT * 0.5f, 0f);
+        viewport.update(width, height, true);
+        camera.position.set(VEGAS_W * 0.5f, VEGAS_H * 0.5f, 0f);
         camera.update();
-
-        viewWidth = viewport.getWorldWidth();
-        viewHeight = viewport.getWorldHeight();
-        viewLeft = camera.position.x - viewWidth * 0.5f;
-        viewBottom = camera.position.y - viewHeight * 0.5f;
     }
 
     @Override

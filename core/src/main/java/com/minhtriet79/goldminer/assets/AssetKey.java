@@ -70,6 +70,14 @@ public final class AssetKey {
     public static final String BTN_NEXT_UP = "btn_next_up";
     public static final String BTN_NEXT_OVER = "btn_next_over";
     public static final String BTN_NEXT_DOWN = "btn_next_down";
+    public static final String BTN_HELP_UP = "btn_help_up";
+    public static final String BTN_HELP_OVER = "btn_help_over";
+    public static final String BTN_HELP_DOWN = "btn_help_down";
+    public static final String BTN_WINDOW_UP = "btn_window_up";
+    public static final String BTN_WINDOW_OVER = "btn_window_over";
+    public static final String BTN_WINDOW_DOWN = "btn_window_down";
+    public static final String UI_VEGAS_FRAME = "ui_vegas_frame";
+    public static final String UI_VEGAS_LOGO = "ui_vegas_logo";
 
     public static final String UI_DYNAMITE_ICON = "ui_dynamite_icon";
     public static final String SHOP_DESC_BANNER = "shop_desc_banner";

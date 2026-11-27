@@ -66,6 +66,9 @@ public class GoldMinerGame extends Game {
     private BitmapFont hudFont;
     private BitmapFont floatingFont;
     private BitmapFont bannerFont;
+    private BitmapFont playSmallFont;
+    private BitmapFont playHudFont;
+    private BitmapFont playBannerFont;
 
     private final RunSession runSession = new RunSession();
     private JsonSaveRepository saveRepository;
@@ -116,6 +119,9 @@ public class GoldMinerGame extends Game {
         pixelHudFont = createPixelFont(pixelGenerator, 11);
         floatingFont = createPixelFont(pixelGenerator, 12);
         bannerFont = createPixelFont(pixelGenerator, 14);
+        playSmallFont = createPixelFont(pixelGenerator, 15);
+        playHudFont = createPixelFont(pixelGenerator, 19);
+        playBannerFont = createPixelFont(pixelGenerator, 26);
         pixelGenerator.dispose();
 
         menuTinyFont = pixelTinyFont;
@@ -491,6 +497,18 @@ public class GoldMinerGame extends Game {
         return bannerFont;
     }
 
+    public BitmapFont getPlaySmallFont() {
+        return playSmallFont;
+    }
+
+    public BitmapFont getPlayHudFont() {
+        return playHudFont;
+    }
+
+    public BitmapFont getPlayBannerFont() {
+        return playBannerFont;
+    }
+
     public RunSession getRunSession() {
         return runSession;
     }
@@ -542,6 +560,15 @@ public class GoldMinerGame extends Game {
         }
         if (bannerFont != null) {
             bannerFont.dispose();
+        }
+        if (playSmallFont != null) {
+            playSmallFont.dispose();
+        }
+        if (playHudFont != null) {
+            playHudFont.dispose();
+        }
+        if (playBannerFont != null) {
+            playBannerFont.dispose();
         }
         if (whitePixel != null) {
             whitePixel.dispose();

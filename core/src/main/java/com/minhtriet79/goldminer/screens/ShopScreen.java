@@ -14,7 +14,7 @@ import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.ScreenUtils;
-import com.badlogic.gdx.utils.viewport.ExtendViewport;
+import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.minhtriet79.goldminer.GoldMinerGame;
 import com.minhtriet79.goldminer.assets.AssetKey;
 import com.minhtriet79.goldminer.assets.Assets;
@@ -43,11 +43,13 @@ public class ShopScreen implements Screen {
         "Prices too steep? Dig deeper next round!"
     };
 
-    private static final float[] SLOT_CENTERS_X = {70f, 130f, 185f, 238f, 300f};
+    private static final float VEGAS_W = 800f;
+    private static final float VEGAS_H = 600f;
+    private static final float[] SLOT_CENTERS_X = {116f, 214f, 308f, 398f, 502f};
 
     private final GoldMinerGame game;
     private final OrthographicCamera camera;
-    private final ExtendViewport viewport;
+    private final FitViewport viewport;
     private final Vector3 touchPoint = new Vector3();
 
     private final int completedLevel;
@@ -56,11 +58,6 @@ public class ShopScreen implements Screen {
     private final VegasButton[] slotButtons = new VegasButton[5];
     private final VegasButton nextLevelButton;
     private final VegasButton menuButton;
-
-    private float viewLeft = 0f;
-    private float viewBottom = 0f;
-    private float viewWidth = WorldBounds.WORLD_WIDTH;
-    private float viewHeight = WorldBounds.WORLD_HEIGHT;
 
     private float stateTime;
     private float buyAnimTimer = -1f;
@@ -75,7 +72,7 @@ public class ShopScreen implements Screen {
         this.game = game;
         this.completedLevel = Math.max(1, Math.min(RunSession.MAX_W1_LEVEL, completedLevel));
         this.camera = new OrthographicCamera();
-        this.viewport = new ExtendViewport(WorldBounds.WORLD_WIDTH, WorldBounds.WORLD_HEIGHT, camera);
+        this.viewport = new FitViewport(VEGAS_W, VEGAS_H, camera);
 
         RunSession run = game.getRunSession();
         this.nextLevelNumber = Math.min(RunSession.MAX_W1_LEVEL, this.completedLevel + 1);
@@ -84,19 +81,19 @@ public class ShopScreen implements Screen {
         for (int i = 0; i < 5; i++) {
             ShopOffer offer = offers.get(i);
             if (offer.isAvailable()) {
-                float w = 40f;
-                float h = 44f;
+                float w = 68f;
+                float h = 88f;
                 if (offer.itemType == ShopItemType.TITANIUM_CABLE) {
-                    w = 52f;
-                    h = 18f;
+                    w = 96f;
+                    h = 38f;
                 } else if (offer.itemType == ShopItemType.LUCKY_CLOVER || offer.itemType == ShopItemType.POCKET_WATCH) {
-                    w = 32f;
-                    h = 30f;
+                    w = 56f;
+                    h = 58f;
                 }
                 String prefix = offer.itemType.buttonKeyPrefix;
                 slotButtons[i] = new VegasButton(
                     SLOT_CENTERS_X[i] - w * 0.5f,
-                    82f,
+                    186f,
                     w,
                     h,
                     prefix + "_up",
@@ -106,13 +103,13 @@ public class ShopScreen implements Screen {
             }
         }
 
-        this.nextLevelButton = new VegasButton(
-            352f, 232f, 108f, 22f,
-            AssetKey.BTN_NEXT_UP, AssetKey.BTN_NEXT_OVER, AssetKey.BTN_NEXT_DOWN
-        );
         this.menuButton = new VegasButton(
-            20f, 232f, 108f, 22f,
+            40f, 10f, 156f, 32f,
             AssetKey.BTN_MENU_UP, AssetKey.BTN_MENU_OVER, AssetKey.BTN_MENU_DOWN
+        );
+        this.nextLevelButton = new VegasButton(
+            604f, 10f, 156f, 32f,
+            AssetKey.BTN_NEXT_UP, AssetKey.BTN_NEXT_OVER, AssetKey.BTN_NEXT_DOWN
         );
 
         this.lexSpeech = nextLevelNumber == 2
@@ -146,6 +143,9 @@ public class ShopScreen implements Screen {
     }
 
     private void handleHoverAndInput() {
+        if (Gdx.input.isKeyJustPressed(Input.Keys.F11)) {
+            game.toggleFullscreen();
+        }
         touchPoint.set(Gdx.input.getX(), Gdx.input.getY(), 0f);
         viewport.unproject(touchPoint);
 
@@ -199,13 +199,14 @@ public class ShopScreen implements Screen {
     }
 
     private void drawShop() {
-        ScreenUtils.clear(0.10f, 0.08f, 0.06f, 1f);
-        viewport.apply();
+        ScreenUtils.clear(0f, 0f, 0f, 1f);
+        viewport.apply(true);
 
         SpriteBatch batch = game.getBatch();
         Assets assets = game.getAssets();
-        BitmapFont hud = game.getHudFont();
-        BitmapFont small = game.getSmallFont();
+        Texture white = game.getWhitePixel();
+        BitmapFont hud = game.getPlayHudFont();
+        BitmapFont small = game.getPlaySmallFont();
         RunSession run = game.getRunSession();
 
         Texture interior = assets.getTexture(AssetKey.BG_SHOP_INTERIOR);
@@ -219,44 +220,33 @@ public class ShopScreen implements Screen {
 
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
-
-        // Extend shop trailer backdrop across extra ExtendViewport margins (zero black bars)
-        Texture white = game.getWhitePixel();
-        if (viewWidth > WorldBounds.WORLD_WIDTH || viewHeight > WorldBounds.WORLD_HEIGHT) {
-            batch.setColor(0.16f, 0.14f, 0.13f, 1f);
-            batch.draw(white, viewLeft - 2f, viewBottom - 2f, viewWidth + 4f, viewHeight + 4f);
-            batch.setColor(0.32f, 0.34f, 0.38f, 1f);
-            batch.draw(white, viewLeft - 2f, 76f, viewWidth + 4f, 168f);
-            batch.setColor(0.28f, 0.16f, 0.08f, 1f);
-            batch.draw(white, viewLeft - 2f, 0f, viewWidth + 4f, 76f);
-            batch.setColor(Color.WHITE);
-        }
+        batch.setColor(Color.WHITE);
 
         // 1. Interior behind counter window
-        batch.draw(interior, 38f, 108f, 404f, 128f);
+        batch.draw(interior, 64f, 230f, 673f, 280f);
 
         // 2. Animated Lex behind counter
-        batch.draw(lexFrame, 326f, 102f, lexDef.drawWidth * 0.72f, lexDef.drawHeight * 0.72f);
+        batch.draw(lexFrame, 536f, 224f, lexDef.drawWidth * 1.40f, lexDef.drawHeight * 1.40f);
 
-        // 3. Silver trailer frame + wooden counter over bottom/sides
-        batch.draw(frame, 0f, 0f, WorldBounds.WORLD_WIDTH, WorldBounds.WORLD_HEIGHT);
+        // 3. Silver trailer frame + wooden counter (native 800x600)
+        batch.draw(frame, 0f, 0f, VEGAS_W, VEGAS_H);
 
         // 4. Lex speech bubble inside top-left of window
-        batch.draw(bubble, 44f, 186f, 240f, 44f);
+        batch.draw(bubble, 82f, 412f, 396f, 96f);
         small.setColor(0.28f, 0.14f, 0.03f, 1f);
-        small.draw(batch, lexSpeech, 54f, 217f, 220f, Align.left, true);
+        small.draw(batch, lexSpeech, 100f, 480f, 360f, Align.left, true);
 
         // 5. Lex buy-grab arm animation when purchasing
         if (buyAnimTimer >= 0f) {
             Animation<TextureRegion> armAnim = assets.getAnimation(AssetKey.LEX_BUY_ARM);
             TextureRegion armFrame = armAnim.getKeyFrame(buyAnimTimer, false);
-            batch.draw(armFrame, 286f, 52f, 145f, 112f);
+            batch.draw(armFrame, 476f, 120f, 240f, 190f);
         }
 
         // 6. Description banner pinned under counter
-        batch.draw(banner, 94f, 10f, 292f, 56f);
+        batch.draw(banner, 156f, 56f, 486f, 115f);
         small.setColor(0.28f, 0.14f, 0.03f, 1f);
-        small.draw(batch, hoveredDesc, 110f, 49f, 260f, Align.center, true);
+        small.draw(batch, hoveredDesc, 186f, 138f, 426f, Align.center, true);
 
         // 7. 5 Shop item slots + prices
         for (int i = 0; i < 5; i++) {
@@ -265,17 +255,27 @@ public class ShopScreen implements Screen {
                 slotButtons[i].draw(batch, assets, viewport, touchPoint);
                 boolean affordable = run.getMineMoney() >= offer.price;
                 hud.setColor(affordable ? Color.LIME : Color.SALMON);
-                hud.draw(batch, "$" + offer.price, SLOT_CENTERS_X[i] - 28f, 77f, 56f, Align.center, false);
+                hud.draw(batch, "$" + offer.price, SLOT_CENTERS_X[i] - 45f, 180f, 90f, Align.center, false);
             }
         }
 
-        // 8. Top header bar: Mine Money ($), Next Level target hint, buttons
-        hud.setColor(Color.GOLD);
-        hud.draw(batch, "TIỀN MỎ ($): $" + run.getMineMoney() + "   |   THUỐC NỔ: " + run.getDynamiteCount(),
-            132f, 250f, 214f, Align.center, false);
-        small.setColor(0.12f, 0.10f, 0.08f, 1f);
-        small.draw(batch, "CỬA HÀNG AUSTRALIA - MỞ KHÓA MÀN " + nextLevelNumber + "/6",
-            126f, 265f, 224f, Align.center, false);
+        // 8. Top header title inside silver trailer top panel
+        small.setColor(0.14f, 0.10f, 0.06f, 1f);
+        small.draw(batch, "CỬA HÀNG AUSTRALIA - MỞ KHÓA MÀN " + nextLevelNumber + "/6   |   THUỐC NỔ: " + run.getDynamiteCount(),
+            178f, 578f, 520f, Align.center, false);
+
+        // 9. Authentic hollow 800x600 Vegas Bezel & Bottom Bar + Logo
+        batch.setColor(Color.WHITE);
+        batch.draw(assets.getTexture(AssetKey.UI_VEGAS_FRAME), 0f, 0f, VEGAS_W, VEGAS_H);
+        batch.draw(assets.getTexture(AssetKey.UI_VEGAS_LOGO), 12f, 506f, 158f, 84f);
+
+        // Black cash readout box in center of bottom bar (like Vegas Shop)
+        batch.setColor(0f, 0f, 0f, 1f);
+        batch.draw(white, 316f, 12f, 168f, 28f);
+        batch.setColor(Color.WHITE);
+        batch.draw(assets.getTexture(AssetKey.MENU_COIN_ICON), 286f, 14f, 24f, 24f);
+        hud.setColor(Color.LIME);
+        hud.draw(batch, "$" + run.getMineMoney(), 320f, 33f, 160f, Align.center, false);
 
         menuButton.draw(batch, assets, viewport, touchPoint);
         nextLevelButton.draw(batch, assets, viewport, touchPoint);
@@ -285,14 +285,9 @@ public class ShopScreen implements Screen {
 
     @Override
     public void resize(int width, int height) {
-        viewport.update(width, height, false);
-        camera.position.set(WorldBounds.WORLD_WIDTH * 0.5f, WorldBounds.WORLD_HEIGHT * 0.5f, 0f);
+        viewport.update(width, height, true);
+        camera.position.set(VEGAS_W * 0.5f, VEGAS_H * 0.5f, 0f);
         camera.update();
-
-        viewWidth = viewport.getWorldWidth();
-        viewHeight = viewport.getWorldHeight();
-        viewLeft = camera.position.x - viewWidth * 0.5f;
-        viewBottom = camera.position.y - viewHeight * 0.5f;
     }
 
     @Override

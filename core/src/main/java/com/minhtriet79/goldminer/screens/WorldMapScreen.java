@@ -360,14 +360,7 @@ public class WorldMapScreen implements Screen {
     }
 
     private void drawGoldCaveAndSparkles(SpriteBatch batch, Assets assets, Texture white) {
-        // Draw ComfyUI golden cave arch tucked right behind Lv6 trail node
-        Texture caveTex = assets.getTexture(AssetKey.MAP_GOLD_CAVE);
-        float caveX = MathUtils.floor(nodeWorldX[LEVEL_COUNT - 1] + 4f);
-        float caveY = MathUtils.floor(nodeWorldY[LEVEL_COUNT - 1] - 3f);
-        batch.setColor(Color.WHITE);
-        batch.draw(caveTex, caveX, caveY, 36f, 29f);
-
-        // 8 rising golden pixel sparkles above cave entrance (zero GC)
+        // Map artwork already includes the golden mine entrance; render rising golden sparkles only
         for (int i = 0; i < CAVE_SPARK_COUNT; i++) {
             float life = (elapsedTime * 0.65f + caveSparkPhase[i] * 0.14f) % 1.0f;
             float sx = MathUtils.floor(caveAnchorX + caveSparkOffsetX[i] + 2f * MathUtils.sin(elapsedTime * 3f + i));
@@ -466,15 +459,17 @@ public class WorldMapScreen implements Screen {
         boolean useWalkFrame = walking && (hopArc > 2.2f || ((int) (walkAnimTimer / 0.11f) % 2 == 1));
         Texture minerTex = assets.getTexture(useWalkFrame ? AssetKey.MAP_MINI_MINER_WALK : AssetKey.MAP_MINI_MINER_IDLE);
 
-        int drawX = MathUtils.floor(mx - 12f);
+        float drawH = 36f;
+        float drawW = MathUtils.round(drawH * minerTex.getWidth() / (float) Math.max(1, minerTex.getHeight()));
+        int drawX = MathUtils.floor(mx - drawW * 0.5f);
         int drawY = MathUtils.floor(my + 3f + idleBob + hopArc);
         batch.setColor(Color.WHITE);
         batch.draw(
             minerTex,
             drawX, drawY,
-            24f, 33f,
+            drawW, drawH,
             0, 0, minerTex.getWidth(), minerTex.getHeight(),
-            !minerFacingRight, false
+            minerFacingRight, false
         );
     }
 

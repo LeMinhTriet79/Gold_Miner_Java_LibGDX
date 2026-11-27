@@ -13,7 +13,7 @@ import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.ScreenUtils;
-import com.badlogic.gdx.utils.viewport.ExtendViewport;
+import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.minhtriet79.goldminer.GoldMinerGame;
 import com.minhtriet79.goldminer.assets.AssetKey;
 import com.minhtriet79.goldminer.assets.Assets;
@@ -36,15 +36,18 @@ import java.util.Locale;
  */
 public class LevelResultScreen implements Screen {
 
+    private static final float VEGAS_W = 800f;
+    private static final float VEGAS_H = 600f;
+
     private static final Color COL_GOLD = new Color(1.00f, 0.85f, 0.28f, 1f);
     private static final Color COL_CREAM = new Color(0.99f, 0.95f, 0.82f, 1f);
     private static final Color COL_LIME = new Color(0.56f, 0.96f, 0.52f, 1f);
     private static final Color COL_FAIL = new Color(1.00f, 0.45f, 0.40f, 1f);
-    private static final Color COL_SCRIM = new Color(0.04f, 0.02f, 0.01f, 0.55f);
+    private static final Color COL_SCRIM = new Color(0.04f, 0.02f, 0.01f, 0.52f);
 
     private final GoldMinerGame game;
     private final OrthographicCamera camera;
-    private final ExtendViewport viewport;
+    private final FitViewport viewport;
     private final Vector3 touchPoint = new Vector3();
 
     private final boolean passed;
@@ -62,18 +65,9 @@ public class LevelResultScreen implements Screen {
     private final String leftBtnLabel;
     private final String rightBtnLabel;
 
-    private final Rectangle panelRect = new Rectangle(84f, 44f, 312f, 182f);
-    private final Rectangle leftBtnRect = new Rectangle(104f, 58f, 124f, 26f);
-    private final Rectangle rightBtnRect = new Rectangle(252f, 58f, 124f, 26f);
-
-    private float viewLeft = 0f;
-    private float viewBottom = 0f;
-    private float viewWidth = WorldBounds.WORLD_WIDTH;
-    private float viewHeight = WorldBounds.WORLD_HEIGHT;
-    private float bgDrawX = 0f;
-    private float bgDrawY = 0f;
-    private float bgDrawW = WorldBounds.WORLD_WIDTH;
-    private float bgDrawH = WorldBounds.WORLD_HEIGHT;
+    private final Rectangle panelRect = new Rectangle(140f, 120f, 520f, 360f);
+    private final Rectangle leftBtnRect = new Rectangle(180f, 152f, 200f, 44f);
+    private final Rectangle rightBtnRect = new Rectangle(420f, 152f, 200f, 44f);
 
     public LevelResultScreen(GoldMinerGame game, boolean passed, int earnedThisLevel) {
         this.game = game;
@@ -118,7 +112,7 @@ public class LevelResultScreen implements Screen {
         }
 
         this.camera = new OrthographicCamera();
-        this.viewport = new ExtendViewport(WorldBounds.WORLD_WIDTH, WorldBounds.WORLD_HEIGHT, camera);
+        this.viewport = new FitViewport(VEGAS_W, VEGAS_H, camera);
     }
 
     @Override
@@ -134,6 +128,9 @@ public class LevelResultScreen implements Screen {
     @Override
     public void render(float rawDt) {
         Math.min(rawDt, 0.05f);
+        if (Gdx.input.isKeyJustPressed(Input.Keys.F11)) {
+            game.toggleFullscreen();
+        }
 
         touchPoint.set(Gdx.input.getX(), Gdx.input.getY(), 0f);
         viewport.unproject(touchPoint);
@@ -142,42 +139,42 @@ public class LevelResultScreen implements Screen {
             return;
         }
 
-        ScreenUtils.clear(0.06f, 0.04f, 0.02f, 1f);
-        viewport.apply();
+        ScreenUtils.clear(0f, 0f, 0f, 1f);
+        viewport.apply(true);
 
         SpriteBatch batch = game.getBatch();
         Assets assets = game.getAssets();
         Texture bg = assets.getTexture(passed ? AssetKey.BG_PASS_W1 : AssetKey.BG_RESULT_W1);
         Texture white = game.getWhitePixel();
-        BitmapFont banner = game.getBannerFont();
-        BitmapFont hud = game.getPixelHudFont();
-        BitmapFont small = game.getPixelSmallFont();
+        BitmapFont banner = game.getPlayBannerFont();
+        BitmapFont hud = game.getPlayHudFont();
+        BitmapFont small = game.getPlaySmallFont();
 
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
 
         batch.setColor(Color.WHITE);
-        batch.draw(bg, bgDrawX, bgDrawY, bgDrawW, bgDrawH);
+        batch.draw(bg, 0f, 0f, VEGAS_W, VEGAS_H);
         batch.setColor(COL_SCRIM);
-        batch.draw(white, viewLeft - 2f, viewBottom - 2f, viewWidth + 4f, viewHeight + 4f);
+        batch.draw(white, 0f, 0f, VEGAS_W, VEGAS_H);
 
         batch.setColor(Color.WHITE);
         batch.draw(assets.getTexture(AssetKey.UI_MODAL_PANEL),
             panelRect.x, panelRect.y, panelRect.width, panelRect.height);
 
         MenuTopHeader.drawShadowText(banner, batch, titleLine,
-            panelRect.x + 12f, panelRect.y + 162f, panelRect.width - 24f, Align.center, false,
+            panelRect.x + 20f, panelRect.y + 318f, panelRect.width - 40f, Align.center, false,
             passed ? COL_GOLD : COL_FAIL);
 
         MenuTopHeader.drawShadowText(small, batch, summaryLine,
-            panelRect.x + 14f, panelRect.y + 135f, panelRect.width - 28f, Align.center, false, COL_CREAM);
+            panelRect.x + 24f, panelRect.y + 268f, panelRect.width - 48f, Align.center, false, COL_CREAM);
 
         MenuTopHeader.drawShadowText(hud, batch, highlightLine,
-            panelRect.x + 14f, panelRect.y + 114f, panelRect.width - 28f, Align.center, false,
+            panelRect.x + 24f, panelRect.y + 228f, panelRect.width - 48f, Align.center, false,
             passed ? COL_LIME : COL_FAIL);
 
         MenuTopHeader.drawShadowText(small, batch, subLine,
-            panelRect.x + 14f, panelRect.y + 96f, panelRect.width - 28f, Align.center, true, COL_GOLD);
+            panelRect.x + 24f, panelRect.y + 190f, panelRect.width - 48f, Align.center, true, COL_GOLD);
 
         boolean overLeft = leftBtnRect.contains(touchPoint.x, touchPoint.y);
         String leftKey = passed
@@ -197,7 +194,10 @@ public class LevelResultScreen implements Screen {
         MenuTopHeader.drawShadowText(small, batch, rightBtnLabel,
             rightBtnRect.x, rightY, rightBtnRect.width, Align.center, false, Color.WHITE);
 
+        // Authentic hollow 800x600 Vegas bezel frame (transparent interior)
         batch.setColor(Color.WHITE);
+        batch.draw(assets.getTexture(AssetKey.UI_VEGAS_FRAME), 0f, 0f, VEGAS_W, VEGAS_H);
+
         batch.end();
     }
 
@@ -237,20 +237,9 @@ public class LevelResultScreen implements Screen {
 
     @Override
     public void resize(int width, int height) {
-        viewport.update(width, height, false);
-        camera.position.set(WorldBounds.WORLD_WIDTH * 0.5f, WorldBounds.WORLD_HEIGHT * 0.5f, 0f);
+        viewport.update(width, height, true);
+        camera.position.set(VEGAS_W * 0.5f, VEGAS_H * 0.5f, 0f);
         camera.update();
-
-        viewWidth = viewport.getWorldWidth();
-        viewHeight = viewport.getWorldHeight();
-        viewLeft = camera.position.x - viewWidth * 0.5f;
-        viewBottom = camera.position.y - viewHeight * 0.5f;
-
-        float bgScale = Math.max(viewWidth / WorldBounds.WORLD_WIDTH, viewHeight / WorldBounds.WORLD_HEIGHT);
-        bgDrawW = WorldBounds.WORLD_WIDTH * bgScale;
-        bgDrawH = WorldBounds.WORLD_HEIGHT * bgScale;
-        bgDrawX = MenuTopHeader.computeCoverFillX(viewLeft, viewWidth, bgDrawW);
-        bgDrawY = MenuTopHeader.computeCoverFillY(viewBottom, viewHeight, bgDrawH);
     }
 
     @Override
