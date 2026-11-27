@@ -2,6 +2,8 @@ package com.minhtriet79.goldminer;
 
 import com.badlogic.gdx.Game;
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Graphics;
+import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.audio.Music;
@@ -24,11 +26,14 @@ import com.minhtriet79.goldminer.domain.settlement.SettlementSummary;
 import com.minhtriet79.goldminer.persistence.JsonSaveRepository;
 import com.minhtriet79.goldminer.persistence.LocalJsonAccountStore;
 import com.minhtriet79.goldminer.persistence.SaveData;
+import com.minhtriet79.goldminer.screens.GoldMineScreen;
 import com.minhtriet79.goldminer.screens.LevelResultScreen;
 import com.minhtriet79.goldminer.screens.MainMenuScreen;
 import com.minhtriet79.goldminer.screens.PlayScreen;
 import com.minhtriet79.goldminer.screens.SettlementScreen;
 import com.minhtriet79.goldminer.screens.ShopScreen;
+import com.minhtriet79.goldminer.screens.WorldHubScreen;
+import com.minhtriet79.goldminer.screens.WorldMapScreen;
 import com.minhtriet79.goldminer.studio.ExternalFileDropListener;
 import com.minhtriet79.goldminer.studio.StudioMode;
 import com.minhtriet79.goldminer.studio.StudioScreen;
@@ -66,6 +71,10 @@ public class GoldMinerGame extends Game {
     private SaveData saveData;
     private AccountService accountService;
     private boolean muted;
+    private boolean debugAllLevelsUnlocked;
+    private boolean pendingUnlockToast;
+    private int windowedWidth = 960;
+    private int windowedHeight = 540;
     private ExternalFileDropListener externalFileDropListener;
     private StudioSkinManager studioSkinManager;
     private Screen pendingScreen;
@@ -92,19 +101,18 @@ public class GoldMinerGame extends Game {
         whitePixel.setFilter(TextureFilter.Nearest, TextureFilter.Nearest);
         pixmap.dispose();
 
-        FreeTypeFontGenerator generator = new FreeTypeFontGenerator(Gdx.files.internal("fonts/arialbd.ttf"));
-        menuTinyFont = createScaledFont(generator, 13, 0.42f);
-        smallFont = createScaledFont(generator, 14, 0.45f);
-        hudFont = createScaledFont(generator, 18, 0.50f);
-        floatingFont = createScaledFont(generator, 22, 0.50f);
-        bannerFont = createScaledFont(generator, 32, 0.50f);
-        generator.dispose();
-
+        // Crisp 1:1 mono pixel-art fonts with TextureFilter.Nearest across ALL screens (no Linear smoothing)
         FreeTypeFontGenerator pixelGenerator = new FreeTypeFontGenerator(Gdx.files.internal("fonts/tahomabd.ttf"));
         pixelTinyFont = createPixelFont(pixelGenerator, 8);
         pixelSmallFont = createPixelFont(pixelGenerator, 9);
         pixelHudFont = createPixelFont(pixelGenerator, 11);
+        floatingFont = createPixelFont(pixelGenerator, 12);
+        bannerFont = createPixelFont(pixelGenerator, 14);
         pixelGenerator.dispose();
+
+        menuTinyFont = pixelTinyFont;
+        smallFont = pixelSmallFont;
+        hudFont = pixelHudFont;
 
         saveRepository = new JsonSaveRepository();
         saveData = saveRepository.load();
@@ -116,18 +124,6 @@ public class GoldMinerGame extends Game {
         } else {
             showMainMenu();
         }
-    }
-
-    private BitmapFont createScaledFont(FreeTypeFontGenerator generator, int pixelSize, float scale) {
-        FreeTypeFontParameter param = new FreeTypeFontParameter();
-        param.size = pixelSize;
-        param.minFilter = TextureFilter.Linear;
-        param.magFilter = TextureFilter.Linear;
-        param.characters = VIETNAMESE_CHARS;
-        BitmapFont font = generator.generateFont(param);
-        font.getData().setScale(scale);
-        font.setUseIntegerPositions(false);
-        return font;
     }
 
     private BitmapFont createPixelFont(FreeTypeFontGenerator generator, int pixelSize) {
@@ -181,9 +177,68 @@ public class GoldMinerGame extends Game {
 
     @Override
     public void render() {
+        handleGlobalHotkeys();
         applyPendingScreen();
         super.render();
         applyPendingScreen();
+    }
+
+    private void handleGlobalHotkeys() {
+        if (Gdx.input.isKeyJustPressed(Input.Keys.F11)) {
+            toggleFullscreen();
+        }
+        if (Gdx.input.isKeyJustPressed(Input.Keys.F9)) {
+            unlockAllLevelsDebug();
+        }
+    }
+
+    public void toggleFullscreen() {
+        if (Gdx.graphics.isFullscreen()) {
+            Gdx.graphics.setWindowedMode(windowedWidth, windowedHeight);
+        } else {
+            windowedWidth = Math.max(480, Gdx.graphics.getWidth());
+            windowedHeight = Math.max(270, Gdx.graphics.getHeight());
+            Graphics.DisplayMode mode = Gdx.graphics.getDisplayMode();
+            Gdx.graphics.setFullscreenMode(mode);
+        }
+    }
+
+    public void unlockAllLevelsDebug() {
+        debugAllLevelsUnlocked = true;
+        pendingUnlockToast = true;
+        if (accountService != null) {
+            accountService.unlockAllLevels();
+        }
+        if (!muted && assets != null && assets.hasSound(AssetKey.SFX_COIN)) {
+            assets.getSound(AssetKey.SFX_COIN).play(0.65f);
+        }
+    }
+
+    public boolean consumeUnlockToast() {
+        boolean val = pendingUnlockToast;
+        pendingUnlockToast = false;
+        return val;
+    }
+
+    public boolean isLevelUnlocked(int levelNumber) {
+        if (levelNumber < 1 || levelNumber > RunSession.MAX_W1_LEVEL) {
+            return false;
+        }
+        if (debugAllLevelsUnlocked) {
+            return true;
+        }
+        return accountService != null ? accountService.isLevelUnlocked(levelNumber) : (levelNumber == 1);
+    }
+
+    public int getMaxUnlockedLevel() {
+        if (debugAllLevelsUnlocked) {
+            return RunSession.MAX_W1_LEVEL;
+        }
+        return accountService != null ? accountService.getMaxUnlockedLevel() : 1;
+    }
+
+    public boolean isLevelCleared(int levelNumber) {
+        return accountService != null && accountService.isLevelCleared(levelNumber);
     }
 
     public void openStudio() {
@@ -207,6 +262,19 @@ public class GoldMinerGame extends Game {
         switchScreen(new MainMenuScreen(this, "main_menu.json", null));
     }
 
+    public void showWorldHub() {
+        switchScreen(new WorldHubScreen(this));
+    }
+
+    public void showGoldMineSelector() {
+        switchScreen(new GoldMineScreen(this));
+    }
+
+    public void showWorldMap(int initialSelectedLevel) {
+        int clamped = Math.max(1, Math.min(RunSession.MAX_W1_LEVEL, initialSelectedLevel));
+        switchScreen(new WorldMapScreen(this, clamped));
+    }
+
     public void startNewCampaign() {
         runSession.startNewRun();
         switchScreen(new PlayScreen(this, 1));
@@ -215,6 +283,11 @@ public class GoldMinerGame extends Game {
     public void startLevel(int levelNumber) {
         int clamped = Math.max(1, Math.min(RunSession.MAX_W1_LEVEL, levelNumber));
         switchScreen(new PlayScreen(this, clamped));
+    }
+
+    public void startMapLevel(int levelNumber) {
+        int clamped = Math.max(1, Math.min(RunSession.MAX_W1_LEVEL, levelNumber));
+        switchScreen(PlayScreen.forMapLevel(this, clamped));
     }
 
     public void startLevelPlayTest(String levelFileName, Runnable backToStudioAction) {
@@ -234,6 +307,10 @@ public class GoldMinerGame extends Game {
 
     public void showShop() {
         switchScreen(new ShopScreen(this));
+    }
+
+    public void showShopFromLevelWin(int completedLevel) {
+        switchScreen(new ShopScreen(this, completedLevel));
     }
 
     public void showSettlement(boolean completedWorld1) {
@@ -381,15 +458,6 @@ public class GoldMinerGame extends Game {
         }
         if (pixelHudFont != null) {
             pixelHudFont.dispose();
-        }
-        if (menuTinyFont != null) {
-            menuTinyFont.dispose();
-        }
-        if (smallFont != null) {
-            smallFont.dispose();
-        }
-        if (hudFont != null) {
-            hudFont.dispose();
         }
         if (floatingFont != null) {
             floatingFont.dispose();

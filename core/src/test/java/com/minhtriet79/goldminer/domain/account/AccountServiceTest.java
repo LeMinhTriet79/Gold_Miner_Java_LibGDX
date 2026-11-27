@@ -141,6 +141,52 @@ class AccountServiceTest {
         assertEquals("player1", board.get(1).username);
     }
 
+    @Test
+    void recordLevelWinConvertsMineMoneyAtExactTenToOneAndUnlocksSequentially() {
+        assertTrue(service.register("miner_aus", "Miner Aus", "1234", "1234", true).success);
+        assertEquals(1, service.getMaxUnlockedLevel());
+        assertTrue(service.isLevelUnlocked(1));
+        assertFalse(service.isLevelUnlocked(2));
+
+        int xu1 = service.recordLevelWin(1, 555);
+        assertEquals(55, xu1);
+        assertEquals(55, service.getActiveAccount().coins);
+        assertEquals(1, service.getHighestClearedLevel());
+        assertEquals(2, service.getMaxUnlockedLevel());
+        assertTrue(service.isLevelCleared(1));
+        assertTrue(service.isLevelUnlocked(2));
+        assertFalse(service.isLevelUnlocked(3));
+
+        int xu2 = service.recordLevelWin(2, 1159);
+        assertEquals(115, xu2);
+        assertEquals(170, service.getActiveAccount().coins);
+        assertEquals(3, service.getMaxUnlockedLevel());
+
+        int xu6 = service.recordLevelWin(6, 5000);
+        assertEquals(500, xu6);
+        assertEquals(670, service.getActiveAccount().coins);
+        assertEquals(6, service.getMaxUnlockedLevel());
+        assertEquals(1, service.getActiveAccount().totalRunsCompleted);
+    }
+
+    @Test
+    void unlockAllLevelsUnlocksAllSixWithoutFalselyMarkingCleared() {
+        assertTrue(service.register("tester_f9", "Tester", "1234", "1234", true).success);
+        assertFalse(service.isLevelUnlocked(6));
+
+        service.unlockAllLevels();
+
+        assertEquals(6, service.getMaxUnlockedLevel());
+        assertTrue(service.isLevelUnlocked(6));
+        assertFalse(service.isLevelCleared(6));
+        assertEquals(0, service.getHighestClearedLevel());
+
+        AccountService reloaded = new AccountService(store);
+        assertNotNull(reloaded.tryAutoLogin());
+        assertTrue(reloaded.isLevelUnlocked(6));
+        assertFalse(reloaded.isLevelCleared(6));
+    }
+
     private static final class InMemoryAccountStore implements AccountStore {
         AccountDatabase database = new AccountDatabase();
         SessionState session = new SessionState();

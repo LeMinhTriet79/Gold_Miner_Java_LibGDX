@@ -15,6 +15,7 @@ import java.util.regex.Pattern;
  */
 public class AccountService {
 
+    public static final int MAX_WORLD_1_LEVEL = 6;
     private static final int MIN_USERNAME_LEN = 3;
     private static final int MAX_USERNAME_LEN = 20;
     private static final int MAX_DISPLAY_NAME_LEN = 20;
@@ -98,6 +99,7 @@ public class AccountService {
         created.coins = 0;
         created.bestMineMoney = 0;
         created.highestClearedLevel = 0;
+        created.maxUnlockedLevel = 1;
         created.totalRunsCompleted = 0;
         created.createdAtEpochMs = System.currentTimeMillis();
 
@@ -167,6 +169,66 @@ public class AccountService {
         return AuthResult.ok(activeAccount, "Đã đổi tên hiển thị!");
     }
 
+    public int getHighestClearedLevel() {
+        return activeAccount != null ? activeAccount.highestClearedLevel : 0;
+    }
+
+    public int getMaxUnlockedLevel() {
+        if (activeAccount == null) {
+            return 1;
+        }
+        int derived = Math.max(activeAccount.maxUnlockedLevel, activeAccount.highestClearedLevel + 1);
+        return Math.max(1, Math.min(MAX_WORLD_1_LEVEL, derived));
+    }
+
+    public boolean isLevelCleared(int levelNumber) {
+        return activeAccount != null && levelNumber >= 1 && levelNumber <= activeAccount.highestClearedLevel;
+    }
+
+    public boolean isLevelUnlocked(int levelNumber) {
+        return levelNumber >= 1 && levelNumber <= getMaxUnlockedLevel();
+    }
+
+    /**
+     * Records a completed World Map level win: converts Mine Money ($) to Coins (Xu = $ / 10),
+     * unlocks the next level sequentially, and persists {@code data/accounts.json}.
+     */
+    public int recordLevelWin(int levelNumber, int mineMoneyEarned) {
+        int clampedLevel = Math.max(1, Math.min(MAX_WORLD_1_LEVEL, levelNumber));
+        int safeMoney = Math.max(0, mineMoneyEarned);
+        int coinsAwarded = safeMoney / 10;
+        if (activeAccount == null) {
+            return coinsAwarded;
+        }
+        activeAccount.coins += coinsAwarded;
+        activeAccount.bestMineMoney = Math.max(activeAccount.bestMineMoney, safeMoney);
+        if (clampedLevel > activeAccount.highestClearedLevel) {
+            activeAccount.highestClearedLevel = clampedLevel;
+        }
+        int nextUnlock = Math.min(MAX_WORLD_1_LEVEL, Math.max(clampedLevel + 1, activeAccount.highestClearedLevel + 1));
+        if (nextUnlock > activeAccount.maxUnlockedLevel) {
+            activeAccount.maxUnlockedLevel = nextUnlock;
+        }
+        if (clampedLevel >= MAX_WORLD_1_LEVEL) {
+            activeAccount.totalRunsCompleted++;
+        }
+        store.saveAccounts(database);
+        return coinsAwarded;
+    }
+
+    /**
+     * Unlocks all 6 World 1 levels for testing ({@code F9}) without falsely marking uncleared levels as cleared.
+     */
+    public void unlockAllLevels() {
+        if (activeAccount == null) {
+            return;
+        }
+        if (activeAccount.maxUnlockedLevel < MAX_WORLD_1_LEVEL) {
+            activeAccount.maxUnlockedLevel = MAX_WORLD_1_LEVEL;
+            store.saveAccounts(database);
+        }
+    }
+
     public void recordSettlement(SettlementSummary summary) {
         if (activeAccount == null || summary == null) {
             return;
@@ -175,6 +237,10 @@ public class AccountService {
             activeAccount.coins += summary.totalAwardedCoins;
         }
         activeAccount.highestClearedLevel = Math.max(activeAccount.highestClearedLevel, summary.levelsCleared);
+        int nextUnlock = Math.min(MAX_WORLD_1_LEVEL, Math.max(1, activeAccount.highestClearedLevel + 1));
+        if (nextUnlock > activeAccount.maxUnlockedLevel) {
+            activeAccount.maxUnlockedLevel = nextUnlock;
+        }
         activeAccount.bestMineMoney = Math.max(activeAccount.bestMineMoney, summary.finalMineMoney);
         if (summary.completedWorld1) {
             activeAccount.totalRunsCompleted++;

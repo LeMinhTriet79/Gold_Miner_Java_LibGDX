@@ -88,6 +88,34 @@ public class RunSession {
     }
 
     /**
+     * Returns the canonical World 1 Australia map target ($) for levels 1..6.
+     */
+    public static int mapTargetForLevel(int levelNumber) {
+        return switch (Math.max(1, Math.min(MAX_W1_LEVEL, levelNumber))) {
+            case 1 -> 555;
+            case 2 -> 1150;
+            case 3 -> 1900;
+            case 4 -> 2800;
+            case 5 -> 3800;
+            default -> 5000;
+        };
+    }
+
+    /**
+     * Configures a standalone World Map stage starting from {@code mineMoney = 0} with a fixed target
+     * while preserving owned dynamite sticks and pre-level shop buffs.
+     */
+    public void prepareMapLevel(int levelNumber, int fixedGoal, int durationSec) {
+        this.currentLevel = Math.max(1, Math.min(MAX_W1_LEVEL, levelNumber));
+        this.mineMoney = 0;
+        this.lastScore = 0;
+        this.collectedGemsMask = 0;
+        this.settled = false;
+        this.goal = Math.max(50, fixedGoal);
+        resetLevelTimer(Math.max(10, durationSec) + extraTimeSeconds);
+    }
+
+    /**
      * Configures an immediate Studio Play Test run preserving the exact edited goal and timer.
      */
     public void prepareCustomPlayTest(int levelNumber, int customGoal, int customDurationSec) {

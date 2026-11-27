@@ -11,6 +11,7 @@ public class AccountRecord {
     public int coins = 0;
     public int bestMineMoney = 0;
     public int highestClearedLevel = 0;
+    public int maxUnlockedLevel = 1;
     public int totalRunsCompleted = 0;
     public long createdAtEpochMs = 0L;
 
@@ -25,6 +26,7 @@ public class AccountRecord {
         copy.coins = this.coins;
         copy.bestMineMoney = this.bestMineMoney;
         copy.highestClearedLevel = this.highestClearedLevel;
+        copy.maxUnlockedLevel = this.maxUnlockedLevel;
         copy.totalRunsCompleted = this.totalRunsCompleted;
         copy.createdAtEpochMs = this.createdAtEpochMs;
         return copy;

@@ -20,7 +20,7 @@ import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Json;
 import com.badlogic.gdx.utils.ScreenUtils;
-import com.badlogic.gdx.utils.viewport.FitViewport;
+import com.badlogic.gdx.utils.viewport.ExtendViewport;
 import com.minhtriet79.goldminer.GoldMinerGame;
 import com.minhtriet79.goldminer.assets.AssetKey;
 import com.minhtriet79.goldminer.assets.Assets;
@@ -68,9 +68,15 @@ public class PlayScreen implements Screen {
     private final GoldMinerGame game;
     private final String levelFileName;
     private final Runnable backToStudioAction;
+    private final boolean mapMode;
     private final OrthographicCamera camera;
-    private final FitViewport viewport;
+    private final ExtendViewport viewport;
     private final Json json = new Json();
+
+    private float viewLeft = 0f;
+    private float viewBottom = 0f;
+    private float viewWidth = WorldBounds.WORLD_WIDTH;
+    private float viewHeight = WorldBounds.WORLD_HEIGHT;
 
     private final HookConfig hookConfig;
     private final LevelConfig levelConfig;
@@ -136,19 +142,34 @@ public class PlayScreen implements Screen {
     private String timerText = "60";
     private final String levelBadgeText;
 
+    public static PlayScreen forMapLevel(GoldMinerGame game, int levelNumber) {
+        int clamped = Math.max(1, Math.min(RunSession.MAX_W1_LEVEL, levelNumber));
+        return new PlayScreen(game, clamped, "level_" + clamped + ".json", null, true);
+    }
+
     public PlayScreen(GoldMinerGame game, int levelNumber) {
-        this(game, levelNumber, "level_" + levelNumber + ".json", null);
+        this(game, levelNumber, "level_" + levelNumber + ".json", null, false);
     }
 
     public PlayScreen(GoldMinerGame game, int levelNumber, String levelFileName, Runnable backToStudioAction) {
+        this(game, levelNumber, levelFileName, backToStudioAction, false);
+    }
+
+    private PlayScreen(
+        GoldMinerGame game,
+        int levelNumber,
+        String levelFileName,
+        Runnable backToStudioAction,
+        boolean mapMode
+    ) {
         this.game = game;
         this.levelFileName = (levelFileName == null || levelFileName.isEmpty())
             ? ("level_" + levelNumber + ".json")
             : levelFileName;
         this.backToStudioAction = backToStudioAction;
+        this.mapMode = mapMode;
         this.camera = new OrthographicCamera();
-        this.viewport = new FitViewport(WorldBounds.WORLD_WIDTH, WorldBounds.WORLD_HEIGHT, camera);
-        this.viewport.apply(true);
+        this.viewport = new ExtendViewport(WorldBounds.WORLD_WIDTH, WorldBounds.WORLD_HEIGHT, camera);
 
         this.hookConfig = json.fromJson(HookConfig.class, StudioFileHelper.resolveHookConfigFile());
         this.levelConfig = json.fromJson(
@@ -160,6 +181,9 @@ public class PlayScreen implements Screen {
         if (backToStudioAction != null) {
             int customDur = levelConfig.durationSeconds > 0 ? levelConfig.durationSeconds : hookConfig.defaultDurationSec;
             run.prepareCustomPlayTest(levelNumber, levelConfig.goal, customDur);
+        } else if (mapMode) {
+            int dur = levelConfig.durationSeconds > 0 ? levelConfig.durationSeconds : hookConfig.defaultDurationSec;
+            run.prepareMapLevel(levelNumber, RunSession.mapTargetForLevel(levelNumber), dur);
         } else {
             run.prepareLevel(levelNumber, levelConfig.levelValue);
             if (levelConfig.durationSeconds > 0 && levelConfig.durationSeconds != 60) {
@@ -347,7 +371,11 @@ public class PlayScreen implements Screen {
             if (menuButton.contains(touchPoint.x, touchPoint.y)) {
                 transitionTriggered = true;
                 stopRetractSound();
-                game.showSettlement(false);
+                if (mapMode) {
+                    game.showWorldMap(run.getCurrentLevel());
+                } else {
+                    game.showSettlement(false);
+                }
                 return true;
             }
             if (earlyNextButton.contains(touchPoint.x, touchPoint.y)) {
@@ -913,7 +941,33 @@ public class PlayScreen implements Screen {
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
 
-        // 1. Backgrounds & level-authentic Track
+        // 1. Backgrounds & level-authentic Track (filled edge-to-edge on ExtendViewport -> zero black bars)
+        float viewRight = viewLeft + viewWidth;
+        float viewTop = viewBottom + viewHeight;
+        Texture white = game.getWhitePixel();
+        if (viewBottom < 0f) {
+            batch.setColor(0.24f, 0.13f, 0.06f, 1f);
+            batch.draw(white, viewLeft - 4f, viewBottom - 4f, viewWidth + 8f, -viewBottom + 6f);
+        }
+        if (viewTop > WorldBounds.WORLD_HEIGHT) {
+            batch.setColor(0.18f, 0.34f, 0.56f, 1f);
+            batch.draw(white, viewLeft - 4f, WorldBounds.WORLD_HEIGHT - 2f, viewWidth + 8f, viewTop - WorldBounds.WORLD_HEIGHT + 6f);
+        }
+        batch.setColor(Color.WHITE);
+        if (viewLeft < 0f) {
+            float extW = -viewLeft + 4f;
+            batch.draw(mine, viewLeft - 4f, WorldBounds.MINE_BOTTOM_Y, extW, WorldBounds.MINE_TOP_Y);
+            batch.draw(cave, viewLeft - 4f, WorldBounds.MINE_TOP_Y, extW, WorldBounds.HUD_BOTTOM_Y - WorldBounds.MINE_TOP_Y);
+            batch.draw(track, viewLeft - 4f, WorldBounds.TRACK_Y - 1.5f, extW, 32f);
+            batch.draw(sky, viewLeft - 4f, WorldBounds.HUD_BOTTOM_Y, extW, WorldBounds.HUD_TOP_HEIGHT);
+        }
+        if (viewRight > WorldBounds.WORLD_WIDTH) {
+            float extW = viewRight - WorldBounds.WORLD_WIDTH + 4f;
+            batch.draw(mine, WorldBounds.WORLD_WIDTH, WorldBounds.MINE_BOTTOM_Y, extW, WorldBounds.MINE_TOP_Y);
+            batch.draw(cave, WorldBounds.WORLD_WIDTH, WorldBounds.MINE_TOP_Y, extW, WorldBounds.HUD_BOTTOM_Y - WorldBounds.MINE_TOP_Y);
+            batch.draw(track, WorldBounds.WORLD_WIDTH, WorldBounds.TRACK_Y - 1.5f, extW, 32f);
+            batch.draw(sky, WorldBounds.WORLD_WIDTH, WorldBounds.HUD_BOTTOM_Y, extW, WorldBounds.HUD_TOP_HEIGHT);
+        }
         batch.draw(mine, 0f, WorldBounds.MINE_BOTTOM_Y, WorldBounds.WORLD_WIDTH, WorldBounds.MINE_TOP_Y);
         batch.draw(cave, 0f, WorldBounds.MINE_TOP_Y, WorldBounds.WORLD_WIDTH, WorldBounds.HUD_BOTTOM_Y - WorldBounds.MINE_TOP_Y);
         batch.draw(track, 0f, WorldBounds.TRACK_Y - 1.5f, WorldBounds.WORLD_WIDTH, 32f);
@@ -1190,11 +1244,11 @@ public class PlayScreen implements Screen {
         // TIMER circle with pulsing red scale at <= 5s
         int secs = run.getDisplayedSeconds();
         if (secs <= hookConfig.countdownWarningSec) {
-            float pulse = 1.0f + (timerPulseTimer / 0.45f) * 0.35f;
-            hudFont.getData().setScale(0.50f * pulse);
+            float pulse = 1.0f + (timerPulseTimer / 0.45f) * 0.30f;
+            hudFont.getData().setScale(pulse);
             hudFont.setColor(1f, 0.20f, 0.18f, 1f);
             hudFont.draw(batch, timerText, 408f, 250f + (pulse - 1f) * 3f, 24f, Align.center, false);
-            hudFont.getData().setScale(0.50f);
+            hudFont.getData().setScale(1.0f);
         } else {
             hudFont.setColor(0.20f, 1.0f, 0.25f, 1f);
             hudFont.draw(batch, timerText, 408f, 250f, 24f, Align.center, false);
@@ -1230,12 +1284,12 @@ public class PlayScreen implements Screen {
             if (!ft.active) {
                 continue;
             }
-            floatingFont.getData().setScale(0.50f * ft.scale);
+            floatingFont.getData().setScale(ft.scale);
             floatingFont.setColor(ft.color);
             glyphLayout.setText(floatingFont, ft.text);
             floatingFont.draw(batch, glyphLayout, ft.x - glyphLayout.width * 0.5f, ft.y);
         }
-        floatingFont.getData().setScale(0.50f);
+        floatingFont.getData().setScale(1.0f);
     }
 
     private void drawMysteryBanner(SpriteBatch batch) {
@@ -1289,7 +1343,14 @@ public class PlayScreen implements Screen {
 
     @Override
     public void resize(int width, int height) {
-        viewport.update(width, height, true);
+        viewport.update(width, height, false);
+        camera.position.set(WorldBounds.WORLD_WIDTH * 0.5f, WorldBounds.WORLD_HEIGHT * 0.5f, 0f);
+        camera.update();
+
+        viewWidth = viewport.getWorldWidth();
+        viewHeight = viewport.getWorldHeight();
+        viewLeft = camera.position.x - viewWidth * 0.5f;
+        viewBottom = camera.position.y - viewHeight * 0.5f;
     }
 
     @Override

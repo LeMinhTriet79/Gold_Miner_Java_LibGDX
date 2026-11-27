@@ -67,4 +67,24 @@ class LocalJsonAccountStoreTest {
         AccountService thirdRun = new AccountService(new LocalJsonAccountStore(tempDir));
         assertNull(thirdRun.tryAutoLogin());
     }
+
+    @Test
+    void persistsMapProgressionCoinsAndUnlockAllAcrossRestarts() {
+        LocalJsonAccountStore store = new LocalJsonAccountStore(tempDir);
+        AccountService firstRun = new AccountService(store);
+        assertTrue(firstRun.register("outback1", "Outback", "1234", "1234", true).success);
+
+        assertEquals(115, firstRun.recordLevelWin(2, 1150));
+        firstRun.unlockAllLevels();
+
+        AccountService restarted = new AccountService(new LocalJsonAccountStore(tempDir));
+        AccountRecord rec = restarted.tryAutoLogin();
+        assertNotNull(rec);
+        assertEquals(115, rec.coins);
+        assertEquals(2, rec.highestClearedLevel);
+        assertEquals(6, rec.maxUnlockedLevel);
+        assertTrue(restarted.isLevelCleared(2));
+        assertFalse(restarted.isLevelCleared(3));
+        assertTrue(restarted.isLevelUnlocked(6));
+    }
 }

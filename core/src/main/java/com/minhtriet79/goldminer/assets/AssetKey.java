@@ -8,6 +8,8 @@ public final class AssetKey {
 
     // Backgrounds & Tracks (World 1 Australia)
     public static final String BG_MENU_16BIT = "bg_menu_16bit";
+    public static final String BG_HUB_CANYON = "bg_hub_canyon";
+    public static final String BG_MAP_AUSTRALIA = "bg_map_australia";
     public static final String BG_SKY_W1 = "bg_sky_w1";
     public static final String BG_CAVE_W1 = "bg_cave_w1";
     public static final String BG_MINE_W1 = "bg_mine_w1";
@@ -103,6 +105,33 @@ public final class AssetKey {
     public static final String UI_BTN_BLUE_OVER = "ui_btn_blue_over";
     public static final String UI_BTN_RED_UP = "ui_btn_red_up";
     public static final String UI_BTN_RED_OVER = "ui_btn_red_over";
+
+    // World Hub, Gold Mine Selector, & Australia Map UI
+    public static final String HUB_CARD_MINE = "hub_card_mine";
+    public static final String HUB_CARD_CASINO = "hub_card_casino";
+    public static final String HUB_CARD_ARCADE = "hub_card_arcade";
+    public static final String HUB_CARD_SHOP = "hub_card_shop";
+    public static final String MODE_CARD_1P = "mode_card_1p";
+    public static final String MODE_CARD_2P = "mode_card_2p";
+    public static final String UI_HUB_CARD_FRAME = "ui_hub_card_frame";
+    public static final String UI_HUB_CARD_FRAME_OVER = "ui_hub_card_frame_over";
+    public static final String UI_MODE_CARD_FRAME = "ui_mode_card_frame";
+    public static final String UI_MODE_CARD_FRAME_OVER = "ui_mode_card_frame_over";
+    public static final String UI_BTN_BACK_UP = "ui_btn_back_up";
+    public static final String UI_BTN_BACK_OVER = "ui_btn_back_over";
+    public static final String UI_TITLE_BANNER = "ui_title_banner";
+    public static final String UI_TITLE_BANNER_WIDE = "ui_title_banner_wide";
+    public static final String UI_MAP_PREVIEW = "ui_map_preview";
+    public static final String MAP_MINI_MINER_IDLE = "map_mini_miner_idle";
+    public static final String MAP_MINI_MINER_WALK = "map_mini_miner_walk";
+    public static final String MAP_NODE_CLEARED = "map_node_cleared";
+    public static final String MAP_NODE_UNLOCKED = "map_node_unlocked";
+    public static final String MAP_NODE_SELECTED = "map_node_selected";
+    public static final String MAP_NODE_LOCKED = "map_node_locked";
+    public static final String MAP_NODE_GLOW = "map_node_glow";
+    public static final String MAP_CHECK_BADGE = "map_check_badge";
+    public static final String MAP_LOCK_SMALL = "map_lock_small";
+    public static final String MAP_LOCK_BIG = "map_lock_big";
 
     // Animations - Miner, FX, Creatures, Shopkeeper
     public static final String MINER_IDLE = "miner_idle";

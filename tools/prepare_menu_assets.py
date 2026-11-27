@@ -13,6 +13,9 @@ UPLOADED_DIR = Path(
 
 REF_16_9_PLAY = UPLOADED_DIR / "media_1795758188784_794c3d3f.jpg"
 REF_4_3_CLEAN = UPLOADED_DIR / "media_1795759675734_05ac2f55.jpg"
+REF_WORLD_HUB = UPLOADED_DIR / "media_1795763723501_7ce43bc7.jpg"
+REF_GOLD_MINE = UPLOADED_DIR / "media_1795763729201_c57c79ea.jpg"
+REF_MAP_AUS = UPLOADED_DIR / "media_1795763735630_a1a7c00c.jpg"
 
 THEME_DIR = PROJECT_ROOT / "assets" / "themes" / "vegas"
 UI_OUT = THEME_DIR / "ui"
@@ -192,6 +195,383 @@ def prepare_reference_backdrop() -> None:
     BG_OUT.mkdir(parents=True, exist_ok=True)
     canvas.save(BG_OUT / "bg_menu_16bit.png", "PNG")
     print(f"Saved quantized 480x270 pixel-grid backdrop -> {BG_OUT / 'bg_menu_16bit.png'}")
+
+
+def _pixelize_photo(img_rgb: Image.Image, target_w: int, target_h: int, colors: int = 64) -> Image.Image:
+    return (
+        img_rgb.resize((target_w, target_h), Image.Resampling.BOX)
+        .filter(ImageFilter.UnsharpMask(radius=1.0, percent=145, threshold=2))
+        .quantize(colors=colors, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
+        .convert("RGBA")
+    )
+
+
+def prepare_hub_backdrop() -> None:
+    """Create a darkened 480x270 16-bit canyon sunset backdrop for World Hub & Mode Select (zero watermark, no reflection)."""
+    menu_bg = Image.open(BG_OUT / "bg_menu_16bit.png").convert("RGB")
+    top_scene = menu_bg.crop((0, 0, 480, 246)).resize((480, 270), Image.Resampling.BOX)
+
+    # Darken smoothly (58%) so golden-framed wooden cards stand out crisply
+    px = top_scene.load()
+    for y in range(270):
+        for x in range(480):
+            r, g, b = px[x, y]
+            px[x, y] = (int(r * 0.58), int(g * 0.56), int(b * 0.56))
+
+    hub_bg = _pixelize_photo(top_scene, 480, 270, colors=56)
+    hub_bg.save(BG_OUT / "bg_hub_canyon.png", "PNG")
+    print(f"Saved quantized 480x270 hub backdrop -> {BG_OUT / 'bg_hub_canyon.png'}")
+
+
+def _draw_wooden_frame(
+    w: int,
+    h: int,
+    footer_h: int,
+    hover: bool = False,
+) -> Image.Image:
+    """Draw a 16-bit brass-framed wooden card with a transparent inner art window above footer_h."""
+    im = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    rim_hi = (255, 226, 112, 255) if hover else BRASS_HI
+    rim_mid = (242, 180, 56, 255) if hover else BRASS_MID
+    rim_sh = (182, 118, 28, 255) if hover else BRASS_SH
+
+    # Outer 1px outline & 3px brass bevel border
+    d.rectangle((0, 0, w - 1, h - 1), outline=OUTLINE)
+    d.rectangle((1, 1, w - 2, h - 2), outline=rim_mid)
+    d.rectangle((2, 2, w - 3, h - 3), outline=rim_mid)
+    d.line((1, 1, w - 2, 1), fill=rim_hi)
+    d.line((1, 1, 1, h - 2), fill=rim_hi)
+    d.line((2, h - 2, w - 2, h - 2), fill=rim_sh)
+    d.line((w - 2, 2, w - 2, h - 2), fill=rim_sh)
+    d.rectangle((3, 3, w - 4, h - 4), outline=OUTLINE)
+
+    # Bottom wooden label band
+    fy0 = h - footer_h
+    d.rectangle((3, fy0 - 1, w - 4, fy0 - 1), fill=OUTLINE)
+    d.rectangle((4, fy0, w - 5, h - 5), fill=WOOD_MID)
+    d.line((4, fy0, w - 5, fy0), fill=WOOD_HI)
+    for py in range(fy0 + 10, h - 6, 12):
+        d.line((4, py, w - 5, py), fill=WOOD_SEAM)
+        d.line((4, py + 1, w - 5, py + 1), fill=WOOD_HI)
+
+    # Brass corner brackets & rivets
+    for cx, cy, sx, sy in ((0, 0, 1, 1), (w - 1, 0, -1, 1), (0, h - 1, 1, -1), (w - 1, h - 1, -1, -1)):
+        for i in range(9):
+            for j in range(4):
+                px = cx + sx * i
+                py = cy + sy * j
+                if 0 <= px < w and 0 <= py < h:
+                    im.putpixel((px, py), rim_mid)
+                px2 = cx + sx * j
+                py2 = cy + sy * i
+                if 0 <= px2 < w and 0 <= py2 < h:
+                    im.putpixel((px2, py2), rim_mid)
+        for i in range(9):
+            im.putpixel((cx + sx * i, cy), OUTLINE)
+            im.putpixel((cx, cy + sy * i), OUTLINE)
+        im.putpixel((cx + sx * 2, cy + sy * 2), rim_hi)
+
+    return im
+
+
+def prepare_hub_and_mode_cards() -> None:
+    hub_ref = Image.open(REF_WORLD_HUB).convert("RGB")
+    mine_ref = Image.open(REF_GOLD_MINE).convert("RGB")
+
+    # World Hub 4 inner artworks (strictly inside frames and cleanly above label banners)
+    hub_crops = {
+        "hub_card_mine": (166, 138, 480, 278),
+        "hub_card_casino": (543, 138, 857, 278),
+        "hub_card_arcade": (166, 354, 480, 494),
+        "hub_card_shop": (543, 354, 857, 494),
+    }
+    for key, box in hub_crops.items():
+        art = _pixelize_photo(hub_ref.crop(box), 156, 66, colors=48)
+        art.save(UI_OUT / f"{key}.png", "PNG")
+
+    # Gold Mine 1P & 2P inner artworks (above wooden title footers)
+    _pixelize_photo(mine_ref.crop((166, 156, 480, 424)), 156, 124, colors=48).save(UI_OUT / "mode_card_1p.png", "PNG")
+    _pixelize_photo(mine_ref.crop((543, 156, 857, 424)), 156, 124, colors=48).save(UI_OUT / "mode_card_2p.png", "PNG")
+
+    # 16-bit wooden-brass card frames (outer 164x88 with 18px label footer; 164x168 with 38px footer)
+    _draw_wooden_frame(164, 88, footer_h=18, hover=False).save(UI_OUT / "ui_hub_card_frame.png", "PNG")
+    _draw_wooden_frame(164, 88, footer_h=18, hover=True).save(UI_OUT / "ui_hub_card_frame_over.png", "PNG")
+    _draw_wooden_frame(164, 168, footer_h=38, hover=False).save(UI_OUT / "ui_mode_card_frame.png", "PNG")
+    _draw_wooden_frame(164, 168, footer_h=38, hover=True).save(UI_OUT / "ui_mode_card_frame_over.png", "PNG")
+
+    # Shared top header plaques & preview card
+    _draw_wooden_panel(76, 24, avatar_slot=False).save(UI_OUT / "ui_btn_back_up.png", "PNG")
+    back_over = _draw_wooden_panel(76, 24, avatar_slot=False)
+    d_bo = ImageDraw.Draw(back_over)
+    d_bo.rectangle((1, 1, 74, 22), outline=BRASS_HI)
+    back_over.save(UI_OUT / "ui_btn_back_over.png", "PNG")
+
+    _draw_wooden_panel(184, 28, avatar_slot=False).save(UI_OUT / "ui_title_banner.png", "PNG")
+    _draw_wooden_panel(220, 28, avatar_slot=False).save(UI_OUT / "ui_title_banner_wide.png", "PNG")
+    _draw_wooden_panel(116, 76, avatar_slot=False).save(UI_OUT / "ui_map_preview.png", "PNG")
+    print("Generated World Hub & Gold Mine card artworks and wooden-brass frames")
+
+
+def _extract_mini_miner(ref_map: Image.Image) -> None:
+    """Cut out the mini-miner standing on Node 3 cleanly (with shirt & boots!) into 24x32 idle + walk sprites."""
+    crop = ref_map.crop((370, 268, 422, 353)).convert("RGBA")
+    w, h = crop.size
+    px = crop.load()
+
+    def is_bg_pixel(r: int, g: int, b: int) -> bool:
+        is_bright_orange_or_tan = (g >= 92 and r >= 150) or (r >= 200 and g >= 100)
+        is_green_disc = g > r + 10 and g > 105
+        is_river = b > r + 12 and b > 115
+        is_mid_earth = (105 <= r <= 165 and 82 <= g <= 125 and 60 <= b <= 98 and (r - g) < 55)
+        return is_bright_orange_or_tan or is_green_disc or is_river or is_mid_earth
+
+    visited = [[False] * w for _ in range(h)]
+    q: deque[tuple[int, int]] = deque()
+    for x in range(w):
+        for y in (0, h - 1):
+            r, g, b, _ = px[x, y]
+            if is_bg_pixel(r, g, b) and not visited[y][x]:
+                visited[y][x] = True
+                q.append((x, y))
+    for y in range(h):
+        for x in (0, w - 1):
+            r, g, b, _ = px[x, y]
+            if is_bg_pixel(r, g, b) and not visited[y][x]:
+                visited[y][x] = True
+                q.append((x, y))
+
+    while q:
+        cx, cy = q.popleft()
+        px[cx, cy] = (0, 0, 0, 0)
+        for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            nx, ny = cx + dx, cy + dy
+            if 0 <= nx < w and 0 <= ny < h and not visited[ny][nx]:
+                r, g, b, _ = px[nx, ny]
+                if is_bg_pixel(r, g, b):
+                    visited[ny][nx] = True
+                    q.append((nx, ny))
+
+    # Strip bottom green disc glow carefully while preserving dark brown boots
+    for y in range(h - 10, h):
+        for x in range(w):
+            r, g, b, a = px[x, y]
+            if a > 0 and (g > r + 4 or (r > 180 and g > 145)):
+                px[x, y] = (0, 0, 0, 0)
+
+    # Keep ONLY largest connected opaque component (drops any stray cliff line on side)
+    comp_vis = [[False] * w for _ in range(h)]
+    best_comp: list[tuple[int, int]] = []
+    all_comps: list[list[tuple[int, int]]] = []
+    for y in range(h):
+        for x in range(w):
+            if px[x, y][3] > 0 and not comp_vis[y][x]:
+                cq = deque([(x, y)])
+                comp_vis[y][x] = True
+                comp = []
+                while cq:
+                    cx, cy = cq.popleft()
+                    comp.append((cx, cy))
+                    for dx in (-1, 0, 1):
+                        for dy in (-1, 0, 1):
+                            nx, ny = cx + dx, cy + dy
+                            if 0 <= nx < w and 0 <= ny < h and not comp_vis[ny][nx] and px[nx, ny][3] > 0:
+                                comp_vis[ny][nx] = True
+                                cq.append((nx, ny))
+                all_comps.append(comp)
+                if len(comp) > len(best_comp):
+                    best_comp = comp
+    best_set = set(best_comp)
+    for y in range(h):
+        for x in range(w):
+            if px[x, y][3] > 0 and (x, y) not in best_set:
+                px[x, y] = (0, 0, 0, 0)
+
+    bb = crop.getbbox()
+    trimmed = crop.crop(bb) if bb else crop
+    mw = 20
+    mh = max(22, min(30, int(round(trimmed.height * (mw / float(trimmed.width))))))
+    quant = _quantize_16bit_sprite(trimmed, mw, mh, brighten=1.04)
+
+    idle = Image.new("RGBA", (24, 32), (0, 0, 0, 0))
+    ox = (24 - mw) // 2
+    oy = 32 - mh
+    idle.paste(quant, (ox, oy), quant)
+    idle.save(UI_OUT / "map_mini_miner_idle.png", "PNG")
+
+    walk = Image.new("RGBA", (24, 32), (0, 0, 0, 0))
+    walk.paste(quant, (ox, max(0, oy - 1)), quant)
+    walk.save(UI_OUT / "map_mini_miner_walk.png", "PNG")
+    print("Extracted 24x32 mini-miner idle & walk sprites cleanly")
+
+
+def _draw_map_disc(w: int, h: int, fill_hi, fill_mid, fill_sh, rim_col) -> Image.Image:
+    im = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    # Bottom 3px coin thickness
+    d.ellipse((1, 4, w - 2, h - 1), fill=OUTLINE)
+    d.ellipse((2, 4, w - 3, h - 2), fill=fill_sh)
+    # Top oval face
+    d.ellipse((1, 1, w - 2, h - 4), fill=OUTLINE)
+    d.ellipse((2, 2, w - 3, h - 5), fill=rim_col)
+    d.ellipse((4, 3, w - 5, h - 6), fill=fill_mid)
+    d.arc((4, 3, w - 5, h - 7), 195, 345, fill=fill_hi)
+    return im
+
+
+def _draw_padlock(w: int, h: int, is_gold: bool) -> Image.Image:
+    im = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    shackle = (206, 214, 224, 255)
+    body_mid = (232, 178, 44, 255) if is_gold else (146, 158, 174, 255)
+    body_hi = (255, 224, 108, 255) if is_gold else (196, 208, 222, 255)
+    body_sh = (164, 108, 18, 255) if is_gold else (92, 102, 118, 255)
+
+    cx = w // 2
+    sw = max(3, w // 4)
+    # Shackle arch
+    d.arc((cx - sw - 1, 0, cx + sw + 1, h // 2 + 1), 180, 360, fill=OUTLINE, width=3)
+    d.arc((cx - sw, 1, cx + sw, h // 2), 180, 360, fill=shackle, width=1)
+    # Lock body
+    by = h // 2 - 2
+    d.rectangle((1, by, w - 2, h - 1), fill=OUTLINE)
+    d.rectangle((2, by + 1, w - 3, h - 2), fill=body_mid)
+    d.line((2, by + 1, w - 3, by + 1), fill=body_hi)
+    d.line((2, h - 2, w - 3, h - 2), fill=body_sh)
+    # Keyhole
+    d.rectangle((cx - 1, by + 3, cx + 1, by + 5), fill=OUTLINE)
+    d.point((cx, by + 6), fill=OUTLINE)
+    return im
+
+
+def prepare_australia_map_assets() -> None:
+    """Clean REF_MAP_AUS (removing ALL stars, baked overlays, and sparkles), quantize to 480x270, and build map sprites."""
+    ref_map = Image.open(REF_MAP_AUS).convert("RGB")
+    _extract_mini_miner(ref_map)
+
+    scene = ref_map.copy()
+
+    def fill_clean_sand(dx: int, dy: int, dw: int, dh: int, base_rgb: tuple[int, int, int],
+                        pebble_rgb: tuple[int, int, int], trail_strip: tuple[int, int, int, int] | None = None) -> None:
+        patch = Image.new("RGB", (dw, dh), base_rgb)
+        dp = ImageDraw.Draw(patch)
+        # Subtle deterministic 16-bit Outback texture speckles so patched regions match flat sand naturally
+        for py in range(4, dh - 4, 14):
+            for px_i in range(6, dw - 6, 22):
+                if ((px_i * 7 + py * 13) % 5) == 0:
+                    dp.rectangle((px_i, py, px_i + 3, py + 1), fill=pebble_rgb)
+        if trail_strip is not None:
+            tx0, ty0, tx1, ty1 = trail_strip
+            dp.rectangle((tx0, ty0, tx1, ty1), fill=(238, 174, 108))
+        _blend_patch_feathered(scene, patch, dx, dy, 10, 10, 10, 10)
+
+    # Pure Outback palette colors measured directly from landmark-free tiles in REF_MAP_AUS
+    ORANGE_SAND = (242, 126, 74)
+    ORANGE_PEBBLE = (212, 104, 58)
+    TAN_SAND = (246, 178, 110)
+    TAN_PEBBLE = (224, 152, 88)
+    MESA_RED = (218, 96, 62)
+    MESA_SH = (182, 74, 48)
+
+    # 1. Remove Top-Left BACK button (0..180, 0..104) -> clean orange/tan cliff sand
+    fill_clean_sand(0, 0, 180, 106, ORANGE_SAND, ORANGE_PEBBLE)
+
+    # 2. Remove Top-Center "WORLD 1: AUSTRALIA" banner (280..735, 0..119) cleanly
+    fill_clean_sand(280, 0, 456, 120, TAN_SAND, TAN_PEBBLE)
+
+    # 3. Remove Top-Right Profile Card (768..1024, 0..118) cleanly
+    fill_clean_sand(768, 0, 256, 120, TAN_SAND, TAN_PEBBLE)
+
+    # 4. Remove Bottom-Right Preview Box & Gemini Sparkle (804..1024, 380..571) cleanly
+    fill_clean_sand(802, 380, 222, 191, TAN_SAND, TAN_PEBBLE)
+
+    # 5. CRITICAL: Remove ALL 3 yellow stars above Node 1 & Node 2 (ZERO STARS)
+    fill_clean_sand(56, 336, 94, 44, ORANGE_SAND, ORANGE_PEBBLE)
+    fill_clean_sand(160, 224, 92, 46, ORANGE_SAND, ORANGE_PEBBLE)
+
+    # 6. Clean baked disc surfaces, baked mini-miner, and baked padlocks on nodes 1..6 organically
+    fill_clean_sand(62, 368, 82, 58, ORANGE_SAND, ORANGE_PEBBLE, None)
+    fill_clean_sand(164, 254, 82, 56, ORANGE_SAND, ORANGE_PEBBLE, None)
+    fill_clean_sand(348, 262, 102, 152, ORANGE_SAND, ORANGE_PEBBLE, None)
+    fill_clean_sand(498, 252, 84, 92, MESA_RED, MESA_SH, None)
+    fill_clean_sand(646, 142, 82, 92, MESA_RED, MESA_SH, None)
+    # Paint rounded smooth sand trail ovals where nodes 1..5 sit so dirt paths flow continuously
+    d_sc = ImageDraw.Draw(scene)
+    for cx, cy in ((103, 394), (205, 280), (399, 372), (542, 313), (687, 201)):
+        d_sc.ellipse((cx - 26, cy - 12, cx + 26, cy + 12), fill=TAN_SAND)
+    # Node 6: fill inner dark mine cave doorway cleanly
+    d_sc.rectangle((854, 188, 894, 266), fill=(48, 36, 28))
+    d_sc.ellipse((846, 214, 902, 272), fill=(52, 40, 32))
+
+    bg_map = _pixelize_photo(scene, 480, 270, colors=64)
+    bg_map.save(BG_OUT / "bg_map_australia.png", "PNG")
+    print(f"Saved quantized zero-star 480x270 map -> {BG_OUT / 'bg_map_australia.png'}")
+
+    # Crisp 16-bit map discs, glow aura, checkmark badge (NO STARS!), padlocks
+    _draw_map_disc(34, 22, (255, 236, 132, 255), (242, 192, 46, 255), (174, 114, 18, 255), (252, 224, 108, 255)).save(
+        UI_OUT / "map_node_cleared.png", "PNG"
+    )
+    _draw_map_disc(34, 22, (238, 186, 86, 255), (194, 126, 40, 255), (124, 72, 20, 255), (232, 174, 74, 255)).save(
+        UI_OUT / "map_node_unlocked.png", "PNG"
+    )
+    _draw_map_disc(36, 24, (146, 238, 112, 255), (68, 182, 56, 255), (34, 118, 30, 255), (248, 216, 82, 255)).save(
+        UI_OUT / "map_node_selected.png", "PNG"
+    )
+    _draw_map_disc(34, 22, (124, 132, 144, 255), (86, 92, 104, 255), (52, 56, 66, 255), (144, 152, 166, 255)).save(
+        UI_OUT / "map_node_locked.png", "PNG"
+    )
+
+    glow = Image.new("RGBA", (48, 34), (0, 0, 0, 0))
+    dg = ImageDraw.Draw(glow)
+    dg.ellipse((1, 1, 46, 32), fill=(180, 238, 86, 75))
+    dg.ellipse((4, 3, 43, 30), fill=(224, 248, 118, 135))
+    dg.ellipse((8, 6, 39, 27), fill=(255, 250, 156, 195))
+    glow.save(UI_OUT / "map_node_glow.png", "PNG")
+
+    # Crisp 14x14 green/gold Checkmark badge (replaces stars completely)
+    chk = Image.new("RGBA", (14, 14), (0, 0, 0, 0))
+    dc = ImageDraw.Draw(chk)
+    dc.ellipse((0, 0, 13, 13), fill=OUTLINE)
+    dc.ellipse((1, 1, 12, 12), fill=(48, 174, 52, 255))
+    dc.arc((1, 1, 12, 12), 200, 340, fill=(136, 236, 122, 255))
+    for px, py in ((3, 7), (4, 8), (5, 9), (6, 8), (7, 7), (8, 6), (9, 5), (10, 4),
+                   (4, 7), (5, 8), (6, 7), (7, 6), (8, 5), (9, 4)):
+        chk.putpixel((px, py), (255, 246, 168, 255))
+    chk.save(UI_OUT / "map_check_badge.png", "PNG")
+
+    _draw_padlock(12, 14, is_gold=False).save(UI_OUT / "map_lock_small.png", "PNG")
+    _draw_padlock(16, 18, is_gold=True).save(UI_OUT / "map_lock_big.png", "PNG")
+
+    # Export node coords + winding trail waypoints in normalized [0..1] libGDX Y-up space
+    map_data = {
+        "nodes": [
+            {"level": 1, "nx": 0.100, "ny": 0.310, "target": 555, "waypointIndex": 0},
+            {"level": 2, "nx": 0.201, "ny": 0.510, "target": 1150, "waypointIndex": 2},
+            {"level": 3, "nx": 0.390, "ny": 0.348, "target": 1900, "waypointIndex": 5},
+            {"level": 4, "nx": 0.529, "ny": 0.452, "target": 2800, "waypointIndex": 7},
+            {"level": 5, "nx": 0.671, "ny": 0.648, "target": 3800, "waypointIndex": 9},
+            {"level": 6, "nx": 0.854, "ny": 0.567, "target": 5000, "waypointIndex": 12},
+        ],
+        "trailWaypoints": [
+            {"nx": 0.100, "ny": 0.310},  # 0: Node 1
+            {"nx": 0.145, "ny": 0.425},  # 1: trail curve
+            {"nx": 0.201, "ny": 0.510},  # 2: Node 2
+            {"nx": 0.275, "ny": 0.460},  # 3: before bridge
+            {"nx": 0.328, "ny": 0.415},  # 4: wooden bridge
+            {"nx": 0.390, "ny": 0.348},  # 5: Node 3
+            {"nx": 0.465, "ny": 0.395},  # 6: trail up toward mesa
+            {"nx": 0.529, "ny": 0.452},  # 7: Node 4
+            {"nx": 0.605, "ny": 0.560},  # 8: plateau bend
+            {"nx": 0.671, "ny": 0.648},  # 9: Node 5
+            {"nx": 0.610, "ny": 0.310},  # 10: down to railway curve
+            {"nx": 0.745, "ny": 0.428},  # 11: along railway track
+            {"nx": 0.854, "ny": 0.567},  # 12: Node 6 cave entrance
+        ],
+    }
+    DATA_UI_OUT.mkdir(parents=True, exist_ok=True)
+    with (DATA_UI_OUT / "australia_map_nodes.json").open("w", encoding="utf-8") as f:
+        json.dump(map_data, f, indent=2)
+    print(f"Saved map node & trail waypoint config -> {DATA_UI_OUT / 'australia_map_nodes.json'}")
 
 
 def prepare_avatar_from_reference() -> None:
@@ -553,77 +933,93 @@ def update_theme_json() -> None:
     with theme_path.open("r", encoding="utf-8") as f:
         data = json.load(f)
 
-    data["nearestSprites"] = [
-        "bg_menu_16bit",
-        "menu_avatar",
-        "menu_coin_icon",
-        "menu_bulb_lit",
-        "menu_bulb_glow",
-        "btn_play_up",
-        "btn_play_over",
-        "btn_play_glow",
-        "ui_panel_auth",
-        "ui_account_card",
-        "ui_account_dropdown",
-        "ui_modal_panel",
-        "ui_rename_panel",
-        "ui_btn_ticket_blue_up",
-        "ui_btn_ticket_blue_over",
-        "ui_btn_ticket_red_up",
-        "ui_btn_ticket_red_over",
-        "ui_tab_active",
-        "ui_tab_inactive",
-        "ui_input_normal",
-        "ui_input_focus",
-        "ui_checkbox_off",
-        "ui_checkbox_on",
-        "ui_btn_green_up",
-        "ui_btn_green_over",
-        "ui_btn_blue_up",
-        "ui_btn_blue_over",
-        "ui_btn_red_up",
-        "ui_btn_red_over",
-    ]
+    data["filter"] = "NEAREST"
+
+    new_sprite_entries = {
+        "bg_menu_16bit": "backgrounds/bg_menu_16bit.png",
+        "bg_hub_canyon": "backgrounds/bg_hub_canyon.png",
+        "bg_map_australia": "backgrounds/bg_map_australia.png",
+        "menu_avatar": "ui/menu_avatar.png",
+        "menu_coin_icon": "ui/menu_coin_icon.png",
+        "menu_bulb_lit": "ui/menu_bulb_lit.png",
+        "menu_bulb_glow": "ui/menu_bulb_glow.png",
+        "btn_play_up": "ui/btn_play_up.png",
+        "btn_play_over": "ui/btn_play_over.png",
+        "btn_play_glow": "ui/btn_play_glow.png",
+        "ui_panel_auth": "ui/ui_panel_auth.png",
+        "ui_account_card": "ui/ui_account_card.png",
+        "ui_account_dropdown": "ui/ui_account_dropdown.png",
+        "ui_modal_panel": "ui/ui_modal_panel.png",
+        "ui_rename_panel": "ui/ui_rename_panel.png",
+        "ui_btn_ticket_blue_up": "ui/ui_btn_ticket_blue_up.png",
+        "ui_btn_ticket_blue_over": "ui/ui_btn_ticket_blue_over.png",
+        "ui_btn_ticket_red_up": "ui/ui_btn_ticket_red_up.png",
+        "ui_btn_ticket_red_over": "ui/ui_btn_ticket_red_over.png",
+        "ui_tab_active": "ui/ui_tab_active.png",
+        "ui_tab_inactive": "ui/ui_tab_inactive.png",
+        "ui_input_normal": "ui/ui_input_normal.png",
+        "ui_input_focus": "ui/ui_input_focus.png",
+        "ui_checkbox_off": "ui/ui_checkbox_off.png",
+        "ui_checkbox_on": "ui/ui_checkbox_on.png",
+        "ui_btn_green_up": "ui/ui_btn_green_up.png",
+        "ui_btn_green_over": "ui/ui_btn_green_over.png",
+        "ui_btn_blue_up": "ui/ui_btn_blue_up.png",
+        "ui_btn_blue_over": "ui/ui_btn_blue_over.png",
+        "ui_btn_red_up": "ui/ui_btn_red_up.png",
+        "ui_btn_red_over": "ui/ui_btn_red_over.png",
+        "hub_card_mine": "ui/hub_card_mine.png",
+        "hub_card_casino": "ui/hub_card_casino.png",
+        "hub_card_arcade": "ui/hub_card_arcade.png",
+        "hub_card_shop": "ui/hub_card_shop.png",
+        "mode_card_1p": "ui/mode_card_1p.png",
+        "mode_card_2p": "ui/mode_card_2p.png",
+        "ui_hub_card_frame": "ui/ui_hub_card_frame.png",
+        "ui_hub_card_frame_over": "ui/ui_hub_card_frame_over.png",
+        "ui_mode_card_frame": "ui/ui_mode_card_frame.png",
+        "ui_mode_card_frame_over": "ui/ui_mode_card_frame_over.png",
+        "ui_btn_back_up": "ui/ui_btn_back_up.png",
+        "ui_btn_back_over": "ui/ui_btn_back_over.png",
+        "ui_title_banner": "ui/ui_title_banner.png",
+        "ui_title_banner_wide": "ui/ui_title_banner_wide.png",
+        "ui_map_preview": "ui/ui_map_preview.png",
+        "map_mini_miner_idle": "ui/map_mini_miner_idle.png",
+        "map_mini_miner_walk": "ui/map_mini_miner_walk.png",
+        "map_node_cleared": "ui/map_node_cleared.png",
+        "map_node_unlocked": "ui/map_node_unlocked.png",
+        "map_node_selected": "ui/map_node_selected.png",
+        "map_node_locked": "ui/map_node_locked.png",
+        "map_node_glow": "ui/map_node_glow.png",
+        "map_check_badge": "ui/map_check_badge.png",
+        "map_lock_small": "ui/map_lock_small.png",
+        "map_lock_big": "ui/map_lock_big.png",
+    }
+
+    data["nearestSprites"] = list(new_sprite_entries.keys())
     sprites = data.setdefault("sprites", {})
     sprites.pop("menu_miner", None)
     sprites.pop("menu_sign_base", None)
-    sprites.update(
-        {
-            "bg_menu_16bit": "backgrounds/bg_menu_16bit.png",
-            "menu_avatar": "ui/menu_avatar.png",
-            "menu_coin_icon": "ui/menu_coin_icon.png",
-            "menu_bulb_lit": "ui/menu_bulb_lit.png",
-            "menu_bulb_glow": "ui/menu_bulb_glow.png",
-            "btn_play_up": "ui/btn_play_up.png",
-            "btn_play_over": "ui/btn_play_over.png",
-            "btn_play_glow": "ui/btn_play_glow.png",
-            "ui_panel_auth": "ui/ui_panel_auth.png",
-            "ui_account_card": "ui/ui_account_card.png",
-            "ui_account_dropdown": "ui/ui_account_dropdown.png",
-            "ui_modal_panel": "ui/ui_modal_panel.png",
-            "ui_rename_panel": "ui/ui_rename_panel.png",
-            "ui_btn_ticket_blue_up": "ui/ui_btn_ticket_blue_up.png",
-            "ui_btn_ticket_blue_over": "ui/ui_btn_ticket_blue_over.png",
-            "ui_btn_ticket_red_up": "ui/ui_btn_ticket_red_up.png",
-            "ui_btn_ticket_red_over": "ui/ui_btn_ticket_red_over.png",
-            "ui_tab_active": "ui/ui_tab_active.png",
-            "ui_tab_inactive": "ui/ui_tab_inactive.png",
-            "ui_input_normal": "ui/ui_input_normal.png",
-            "ui_input_focus": "ui/ui_input_focus.png",
-            "ui_checkbox_off": "ui/ui_checkbox_off.png",
-            "ui_checkbox_on": "ui/ui_checkbox_on.png",
-            "ui_btn_green_up": "ui/ui_btn_green_up.png",
-            "ui_btn_green_over": "ui/ui_btn_green_over.png",
-            "ui_btn_blue_up": "ui/ui_btn_blue_up.png",
-            "ui_btn_blue_over": "ui/ui_btn_blue_over.png",
-            "ui_btn_red_up": "ui/ui_btn_red_up.png",
-            "ui_btn_red_over": "ui/ui_btn_red_over.png",
-        }
-    )
+    sprites.update(new_sprite_entries)
+
+    missing = []
+    for k, rel in sprites.items():
+        if not (THEME_DIR / rel).is_file():
+            missing.append(f"sprite:{k}={rel}")
+    for k, anim in data.get("animations", {}).items():
+        for fr in anim.get("frames", []):
+            if not (THEME_DIR / fr).is_file():
+                missing.append(f"anim:{k}={fr}")
+    for k, rel in data.get("sounds", {}).items():
+        if not (THEME_DIR / rel).is_file():
+            missing.append(f"sound:{k}={rel}")
+    for k, rel in data.get("music", {}).items():
+        if not (THEME_DIR / rel).is_file():
+            missing.append(f"music:{k}={rel}")
+    if missing:
+        raise FileNotFoundError("Missing theme asset files: " + ", ".join(missing))
 
     with theme_path.open("w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
-    print(f"Updated {theme_path}")
+    print(f"Updated {theme_path} (filter={data['filter']}, sprites={len(sprites)}, missing=0)")
 
 
 def copy_pixel_font() -> None:
@@ -637,9 +1033,12 @@ def copy_pixel_font() -> None:
 def main() -> None:
     copy_pixel_font()
     prepare_reference_backdrop()
+    prepare_hub_backdrop()
     prepare_avatar_from_reference()
     prepare_play_buttons_16bit()
     prepare_16bit_ui_sprites()
+    prepare_hub_and_mode_cards()
+    prepare_australia_map_assets()
     update_theme_json()
 
 

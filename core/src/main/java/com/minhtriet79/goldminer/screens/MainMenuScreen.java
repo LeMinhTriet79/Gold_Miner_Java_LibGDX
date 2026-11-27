@@ -1,7 +1,6 @@
 package com.minhtriet79.goldminer.screens;
 
 import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.Graphics;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.InputAdapter;
 import com.badlogic.gdx.Screen;
@@ -147,9 +146,6 @@ public class MainMenuScreen implements Screen {
     private float bgDrawW = WorldBounds.WORLD_WIDTH;
     private float bgDrawH = WorldBounds.WORLD_HEIGHT;
 
-    private int windowedWidth = 960;
-    private int windowedHeight = 540;
-
     // Interactive bounds (pre-allocated)
     private final Rectangle backButtonRect = new Rectangle(6f, 252f, 108f, 14f);
     private final Rectangle playBounds = new Rectangle(PLAY_X, PLAY_Y, PLAY_W, PLAY_H);
@@ -261,10 +257,6 @@ public class MainMenuScreen implements Screen {
         this.bulbWorldX = new float[bulbCount];
         this.bulbWorldY = new float[bulbCount];
 
-        if (!Gdx.graphics.isFullscreen()) {
-            this.windowedWidth = Math.max(480, Gdx.graphics.getWidth());
-            this.windowedHeight = Math.max(270, Gdx.graphics.getHeight());
-        }
         updateViewportLayout(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         syncCachedAccountLabels();
     }
@@ -840,10 +832,6 @@ public class MainMenuScreen implements Screen {
     }
 
     private boolean handleTouchAndShortcuts() {
-        if (Gdx.input.isKeyJustPressed(Input.Keys.F11)) {
-            toggleFullscreen();
-            return false;
-        }
         if (Gdx.input.isKeyJustPressed(Input.Keys.F10)) {
             game.openStudio(StudioMode.UI_MODE, uiFileName);
             return true;
@@ -907,17 +895,6 @@ public class MainMenuScreen implements Screen {
             return handleLoggedInClick();
         }
         return handleAuthFormClick();
-    }
-
-    private void toggleFullscreen() {
-        if (Gdx.graphics.isFullscreen()) {
-            Gdx.graphics.setWindowedMode(windowedWidth, windowedHeight);
-        } else {
-            windowedWidth = Math.max(480, Gdx.graphics.getWidth());
-            windowedHeight = Math.max(270, Gdx.graphics.getHeight());
-            Graphics.DisplayMode mode = Gdx.graphics.getDisplayMode();
-            Gdx.graphics.setFullscreenMode(mode);
-        }
     }
 
     private boolean handleModalClick() {
@@ -1002,7 +979,7 @@ public class MainMenuScreen implements Screen {
             if (!game.isMuted() && game.getAssets().hasSound(AssetKey.SFX_SHOP_BUY)) {
                 game.getAssets().getSound(AssetKey.SFX_SHOP_BUY).play(0.65f);
             }
-            game.startNewCampaign();
+            game.showWorldHub();
             return true;
         }
         return false;
@@ -1078,7 +1055,7 @@ public class MainMenuScreen implements Screen {
             AccountService svc = game.getAccountService();
             if (svc != null && svc.isLoggedIn()) {
                 if (!dropdownOpen && activeModal == MODAL_NONE) {
-                    game.startNewCampaign();
+                    game.showWorldHub();
                     return true;
                 }
             } else if (activeModal == MODAL_NONE) {
@@ -1326,10 +1303,6 @@ public class MainMenuScreen implements Screen {
 
     @Override
     public void resize(int width, int height) {
-        if (!Gdx.graphics.isFullscreen() && width >= 480 && height >= 270) {
-            windowedWidth = width;
-            windowedHeight = height;
-        }
         updateViewportLayout(width, height);
     }
 

@@ -8,26 +8,43 @@ import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.math.MathUtils;
+import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.ScreenUtils;
-import com.badlogic.gdx.utils.viewport.FitViewport;
+import com.badlogic.gdx.utils.viewport.ExtendViewport;
 import com.minhtriet79.goldminer.GoldMinerGame;
 import com.minhtriet79.goldminer.assets.AssetKey;
 import com.minhtriet79.goldminer.assets.Assets;
 import com.minhtriet79.goldminer.domain.WorldBounds;
+import com.minhtriet79.goldminer.domain.account.AccountRecord;
+import com.minhtriet79.goldminer.domain.account.AccountService;
 import com.minhtriet79.goldminer.domain.run.RunSession;
-import com.minhtriet79.goldminer.gameplay.ui.VegasButton;
+import com.minhtriet79.goldminer.gameplay.ui.MenuTopHeader;
+
+import java.text.NumberFormat;
+import java.util.Locale;
 
 /**
- * Between-level PASS / FAIL screen with authentic Vegas backgrounds and SFX.
- * Routes PASS Lv 1..5 to Australia Shop (Lex), PASS Lv 6 or FAIL to Settlement.
+ * Pure 16-bit Pixel Art Between-Level PASS / FAIL screen with {@link ExtendViewport} (zero black bars):
+ * <ul>
+ *   <li>PASS: converts Mine Money ($) into Coins ({@code Xu = $ / 10}), unlocks next level in {@code accounts.json},
+ *   and offers {@code [CONTINUE]} (to {@link ShopScreen}) or {@code [WORLD MAP]}.</li>
+ *   <li>FAIL: offers {@code [RETRY]} (replay current level) and {@code [QUIT TO MAP]} (return to {@link WorldMapScreen}).</li>
+ * </ul>
  */
 public class LevelResultScreen implements Screen {
 
+    private static final Color COL_GOLD = new Color(1.00f, 0.85f, 0.28f, 1f);
+    private static final Color COL_CREAM = new Color(0.99f, 0.95f, 0.82f, 1f);
+    private static final Color COL_LIME = new Color(0.56f, 0.96f, 0.52f, 1f);
+    private static final Color COL_FAIL = new Color(1.00f, 0.45f, 0.40f, 1f);
+    private static final Color COL_SCRIM = new Color(0.04f, 0.02f, 0.01f, 0.55f);
+
     private final GoldMinerGame game;
     private final OrthographicCamera camera;
-    private final FitViewport viewport;
+    private final ExtendViewport viewport;
     private final Vector3 touchPoint = new Vector3();
 
     private final boolean passed;
@@ -35,9 +52,28 @@ public class LevelResultScreen implements Screen {
     private final int totalMoney;
     private final int goal;
     private final int earnedThisLevel;
+    private final int coinsAwarded;
+    private final int unlockedNextLevel;
 
-    private final VegasButton continueButton;
-    private final VegasButton menuButton;
+    private final String titleLine;
+    private final String summaryLine;
+    private final String highlightLine;
+    private final String subLine;
+    private final String leftBtnLabel;
+    private final String rightBtnLabel;
+
+    private final Rectangle panelRect = new Rectangle(84f, 44f, 312f, 182f);
+    private final Rectangle leftBtnRect = new Rectangle(104f, 58f, 124f, 26f);
+    private final Rectangle rightBtnRect = new Rectangle(252f, 58f, 124f, 26f);
+
+    private float viewLeft = 0f;
+    private float viewBottom = 0f;
+    private float viewWidth = WorldBounds.WORLD_WIDTH;
+    private float viewHeight = WorldBounds.WORLD_HEIGHT;
+    private float bgDrawX = 0f;
+    private float bgDrawY = 0f;
+    private float bgDrawW = WorldBounds.WORLD_WIDTH;
+    private float bgDrawH = WorldBounds.WORLD_HEIGHT;
 
     public LevelResultScreen(GoldMinerGame game, boolean passed, int earnedThisLevel) {
         this.game = game;
@@ -49,22 +85,45 @@ public class LevelResultScreen implements Screen {
         this.totalMoney = run.getMineMoney();
         this.goal = run.getGoal();
 
-        this.camera = new OrthographicCamera();
-        this.viewport = new FitViewport(WorldBounds.WORLD_WIDTH, WorldBounds.WORLD_HEIGHT, camera);
-        this.viewport.apply(true);
+        NumberFormat nf = NumberFormat.getIntegerInstance(Locale.US);
+        AccountService svc = game.getAccountService();
+        if (passed) {
+            this.coinsAwarded = svc != null
+                ? svc.recordLevelWin(finishedLevel, totalMoney)
+                : (Math.max(0, totalMoney) / 10);
+            this.unlockedNextLevel = Math.min(RunSession.MAX_W1_LEVEL, finishedLevel + 1);
 
-        this.continueButton = new VegasButton(
-            258f, 22f, 118f, 24f,
-            AssetKey.BTN_NEXT_UP, AssetKey.BTN_NEXT_OVER, AssetKey.BTN_NEXT_DOWN
-        );
-        this.menuButton = new VegasButton(
-            104f, 22f, 118f, 24f,
-            AssetKey.BTN_MENU_UP, AssetKey.BTN_MENU_OVER, AssetKey.BTN_MENU_DOWN
-        );
+            AccountRecord active = svc != null ? svc.getActiveAccount() : null;
+            int wallet = active != null ? active.coins : (game.getSaveData().officialCoins + coinsAwarded);
+
+            this.titleLine = "HOÀN THÀNH MÀN " + finishedLevel + " / " + RunSession.MAX_W1_LEVEL + "!";
+            this.summaryLine = "Tiền Mỏ ($): $" + nf.format(totalMoney) + "   /   Mục tiêu: $" + nf.format(goal);
+            this.highlightLine = "Quy đổi Xu (Xu = $ / 10): +" + nf.format(coinsAwarded) + " XU";
+            this.subLine = finishedLevel < RunSession.MAX_W1_LEVEL
+                ? "Ví: " + nf.format(wallet) + " XU   |   Đã mở khóa Màn " + unlockedNextLevel + "!"
+                : "Ví: " + nf.format(wallet) + " XU   |   Đã chinh phục World 1 Australia!";
+            this.leftBtnLabel = "WORLD MAP";
+            this.rightBtnLabel = "CONTINUE";
+        } else {
+            this.coinsAwarded = 0;
+            this.unlockedNextLevel = finishedLevel;
+            int missing = Math.max(0, goal - totalMoney);
+
+            this.titleLine = "THẤT BẠI Ở MÀN " + finishedLevel + " / " + RunSession.MAX_W1_LEVEL;
+            this.summaryLine = "Tiền Mỏ ($): $" + nf.format(totalMoney) + "   /   Mục tiêu: $" + nf.format(goal);
+            this.highlightLine = "Còn thiếu: $" + nf.format(missing);
+            this.subLine = "Thử lại màn này hoặc quay về Bản đồ Australia.";
+            this.leftBtnLabel = "QUIT TO MAP";
+            this.rightBtnLabel = "RETRY";
+        }
+
+        this.camera = new OrthographicCamera();
+        this.viewport = new ExtendViewport(WorldBounds.WORLD_WIDTH, WorldBounds.WORLD_HEIGHT, camera);
     }
 
     @Override
     public void show() {
+        Gdx.input.setInputProcessor(null);
         game.stopAllMusic();
         if (!game.isMuted()) {
             String sfx = passed ? AssetKey.SFX_PASS : AssetKey.SFX_NOPASS;
@@ -74,10 +133,16 @@ public class LevelResultScreen implements Screen {
 
     @Override
     public void render(float rawDt) {
-        float dt = Math.min(rawDt, 0.05f);
-        handleInput();
+        Math.min(rawDt, 0.05f);
 
-        ScreenUtils.clear(0.06f, 0.05f, 0.03f, 1f);
+        touchPoint.set(Gdx.input.getX(), Gdx.input.getY(), 0f);
+        viewport.unproject(touchPoint);
+
+        if (handleInput()) {
+            return;
+        }
+
+        ScreenUtils.clear(0.06f, 0.04f, 0.02f, 1f);
         viewport.apply();
 
         SpriteBatch batch = game.getBatch();
@@ -85,86 +150,107 @@ public class LevelResultScreen implements Screen {
         Texture bg = assets.getTexture(passed ? AssetKey.BG_PASS_W1 : AssetKey.BG_RESULT_W1);
         Texture white = game.getWhitePixel();
         BitmapFont banner = game.getBannerFont();
-        BitmapFont hud = game.getHudFont();
-        BitmapFont small = game.getSmallFont();
+        BitmapFont hud = game.getPixelHudFont();
+        BitmapFont small = game.getPixelSmallFont();
 
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
-        batch.draw(bg, 0f, 0f, WorldBounds.WORLD_WIDTH, WorldBounds.WORLD_HEIGHT);
 
-        if (passed) {
-            batch.setColor(0.08f, 0.05f, 0.02f, 0.72f);
-            batch.draw(white, 92f, 64f, 296f, 152f);
-            batch.setColor(Color.WHITE);
+        batch.setColor(Color.WHITE);
+        batch.draw(bg, bgDrawX, bgDrawY, bgDrawW, bgDrawH);
+        batch.setColor(COL_SCRIM);
+        batch.draw(white, viewLeft - 2f, viewBottom - 2f, viewWidth + 4f, viewHeight + 4f);
 
-            banner.setColor(Color.GOLD);
-            banner.draw(batch, "HOAN THANH MAN " + finishedLevel + " / 6!", 92f, 200f, 296f, Align.center, false);
+        batch.setColor(Color.WHITE);
+        batch.draw(assets.getTexture(AssetKey.UI_MODAL_PANEL),
+            panelRect.x, panelRect.y, panelRect.width, panelRect.height);
 
-            hud.setColor(Color.WHITE);
-            hud.draw(batch, "Tien kiem duoc man nay: +$" + earnedThisLevel, 92f, 164f, 296f, Align.center, false);
-            hud.draw(batch, "Tong Tien Mo ($): $" + totalMoney + "   /   Muc tieu: $" + goal, 92f, 140f, 296f, Align.center, false);
+        MenuTopHeader.drawShadowText(banner, batch, titleLine,
+            panelRect.x + 12f, panelRect.y + 162f, panelRect.width - 24f, Align.center, false,
+            passed ? COL_GOLD : COL_FAIL);
 
-            int surplus = Math.max(0, totalMoney - goal);
-            hud.setColor(Color.LIME);
-            hud.draw(batch, "Vuot chi tieu: +$" + surplus, 92f, 116f, 296f, Align.center, false);
+        MenuTopHeader.drawShadowText(small, batch, summaryLine,
+            panelRect.x + 14f, panelRect.y + 135f, panelRect.width - 28f, Align.center, false, COL_CREAM);
 
-            small.setColor(Color.LIGHT_GRAY);
-            String hint = finishedLevel < RunSession.MAX_W1_LEVEL
-                ? "Bam NEXT LEVEL de ghe Cua hang Australia (Lex)"
-                : "Ban da chinh phuc tron ven World 1! Bam NEXT LEVEL de ket toan Xu";
-            small.draw(batch, hint, 92f, 88f, 296f, Align.center, false);
-        } else {
-            banner.setColor(0.55f, 0.08f, 0.05f, 1f);
-            banner.draw(batch, "THAT BAI O MAN " + finishedLevel + " / 6", 90f, 202f, 300f, Align.center, false);
+        MenuTopHeader.drawShadowText(hud, batch, highlightLine,
+            panelRect.x + 14f, panelRect.y + 114f, panelRect.width - 28f, Align.center, false,
+            passed ? COL_LIME : COL_FAIL);
 
-            hud.setColor(0.22f, 0.10f, 0.02f, 1f);
-            hud.draw(batch, "Tong Tien Mo ($): $" + totalMoney, 90f, 164f, 300f, Align.center, false);
-            hud.draw(batch, "Muc tieu can dat: $" + goal, 90f, 140f, 300f, Align.center, false);
-            hud.setColor(0.65f, 0.12f, 0.08f, 1f);
-            hud.draw(batch, "Con thieu: $" + Math.max(0, goal - totalMoney), 90f, 116f, 300f, Align.center, false);
+        MenuTopHeader.drawShadowText(small, batch, subLine,
+            panelRect.x + 14f, panelRect.y + 96f, panelRect.width - 28f, Align.center, true, COL_GOLD);
 
-            small.setColor(0.28f, 0.16f, 0.05f, 1f);
-            small.draw(batch, "Bam NEXT LEVEL hoac ENTER de ket toan Xu", 90f, 88f, 300f, Align.center, false);
-        }
+        boolean overLeft = leftBtnRect.contains(touchPoint.x, touchPoint.y);
+        String leftKey = passed
+            ? (overLeft ? AssetKey.UI_BTN_BLUE_OVER : AssetKey.UI_BTN_BLUE_UP)
+            : (overLeft ? AssetKey.UI_BTN_RED_OVER : AssetKey.UI_BTN_RED_UP);
+        batch.setColor(Color.WHITE);
+        batch.draw(assets.getTexture(leftKey), leftBtnRect.x, leftBtnRect.y, leftBtnRect.width, leftBtnRect.height);
+        float leftY = MathUtils.floor(leftBtnRect.y + (leftBtnRect.height + small.getCapHeight()) * 0.5f);
+        MenuTopHeader.drawShadowText(small, batch, leftBtnLabel,
+            leftBtnRect.x, leftY, leftBtnRect.width, Align.center, false, Color.WHITE);
 
-        menuButton.draw(batch, assets, viewport, touchPoint);
-        continueButton.draw(batch, assets, viewport, touchPoint);
+        boolean overRight = rightBtnRect.contains(touchPoint.x, touchPoint.y);
+        String rightKey = overRight ? AssetKey.UI_BTN_GREEN_OVER : AssetKey.UI_BTN_GREEN_UP;
+        batch.setColor(Color.WHITE);
+        batch.draw(assets.getTexture(rightKey), rightBtnRect.x, rightBtnRect.y, rightBtnRect.width, rightBtnRect.height);
+        float rightY = MathUtils.floor(rightBtnRect.y + (rightBtnRect.height + small.getCapHeight()) * 0.5f);
+        MenuTopHeader.drawShadowText(small, batch, rightBtnLabel,
+            rightBtnRect.x, rightY, rightBtnRect.width, Align.center, false, Color.WHITE);
+
+        batch.setColor(Color.WHITE);
         batch.end();
     }
 
-    private void handleInput() {
+    private boolean handleInput() {
         if (Gdx.input.isKeyJustPressed(Input.Keys.ENTER) || Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
-            advanceNext();
-            return;
+            triggerPrimaryAction();
+            return true;
         }
         if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
-            game.showSettlement(passed && finishedLevel >= RunSession.MAX_W1_LEVEL);
-            return;
+            triggerMapReturn();
+            return true;
         }
         if (Gdx.input.justTouched()) {
-            touchPoint.set(Gdx.input.getX(), Gdx.input.getY(), 0f);
-            viewport.unproject(touchPoint);
-            if (continueButton.contains(touchPoint.x, touchPoint.y)) {
-                advanceNext();
-            } else if (menuButton.contains(touchPoint.x, touchPoint.y)) {
-                game.showSettlement(passed && finishedLevel >= RunSession.MAX_W1_LEVEL);
+            if (rightBtnRect.contains(touchPoint.x, touchPoint.y)) {
+                triggerPrimaryAction();
+                return true;
             }
+            if (leftBtnRect.contains(touchPoint.x, touchPoint.y)) {
+                triggerMapReturn();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void triggerPrimaryAction() {
+        if (passed) {
+            game.showShopFromLevelWin(finishedLevel);
+        } else {
+            game.startMapLevel(finishedLevel);
         }
     }
 
-    private void advanceNext() {
-        if (!passed) {
-            game.showSettlement(false);
-        } else if (finishedLevel >= RunSession.MAX_W1_LEVEL) {
-            game.showSettlement(true);
-        } else {
-            game.showShop();
-        }
+    private void triggerMapReturn() {
+        game.showWorldMap(passed ? unlockedNextLevel : finishedLevel);
     }
 
     @Override
     public void resize(int width, int height) {
-        viewport.update(width, height, true);
+        viewport.update(width, height, false);
+        camera.position.set(WorldBounds.WORLD_WIDTH * 0.5f, WorldBounds.WORLD_HEIGHT * 0.5f, 0f);
+        camera.update();
+
+        viewWidth = viewport.getWorldWidth();
+        viewHeight = viewport.getWorldHeight();
+        viewLeft = camera.position.x - viewWidth * 0.5f;
+        viewBottom = camera.position.y - viewHeight * 0.5f;
+
+        float bgScale = Math.max(viewWidth / WorldBounds.WORLD_WIDTH, viewHeight / WorldBounds.WORLD_HEIGHT);
+        bgDrawW = WorldBounds.WORLD_WIDTH * bgScale;
+        bgDrawH = WorldBounds.WORLD_HEIGHT * bgScale;
+        bgDrawX = MenuTopHeader.computeCoverFillX(viewLeft, viewWidth, bgDrawW);
+        bgDrawY = MenuTopHeader.computeCoverFillY(viewBottom, viewHeight, bgDrawH);
     }
 
     @Override
@@ -177,9 +263,11 @@ public class LevelResultScreen implements Screen {
 
     @Override
     public void hide() {
+        Gdx.input.setInputProcessor(null);
     }
 
     @Override
     public void dispose() {
+        Gdx.input.setInputProcessor(null);
     }
 }

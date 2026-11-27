@@ -9,7 +9,7 @@ import com.badlogic.gdx.utils.ObjectMap;
  */
 public class ThemeConfig {
     public String name = "vegas";
-    public String filter = "LINEAR";
+    public String filter = "NEAREST";
     public Array<String> nearestSprites = new Array<>();
     public ObjectMap<String, String> sprites = new ObjectMap<>();
     public ObjectMap<String, AnimationDef> animations = new ObjectMap<>();
@@ -20,10 +20,10 @@ public class ThemeConfig {
     }
 
     public TextureFilter resolveTextureFilter() {
-        if ("NEAREST".equalsIgnoreCase(filter)) {
-            return TextureFilter.Nearest;
+        if ("LINEAR".equalsIgnoreCase(filter)) {
+            return TextureFilter.Linear;
         }
-        return TextureFilter.Linear;
+        return TextureFilter.Nearest;
     }
 
     public boolean isNearestSprite(String key) {

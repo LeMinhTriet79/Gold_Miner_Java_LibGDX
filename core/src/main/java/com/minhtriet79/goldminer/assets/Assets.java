@@ -170,7 +170,7 @@ public class Assets implements Disposable {
             return;
         }
         Texture tex = new Texture(file);
-        TextureFilter filter = activeConfig != null ? activeConfig.resolveTextureFilter() : TextureFilter.Linear;
+        TextureFilter filter = activeConfig != null ? activeConfig.resolveTextureFilter() : TextureFilter.Nearest;
         tex.setFilter(filter, filter);
         dynamicTextures.put(key, tex);
         ownedTextures.add(tex);
@@ -180,7 +180,7 @@ public class Assets implements Disposable {
         if (def == null || def.frames == null || def.frames.size == 0) {
             return;
         }
-        TextureFilter filter = activeConfig != null ? activeConfig.resolveTextureFilter() : TextureFilter.Linear;
+        TextureFilter filter = activeConfig != null ? activeConfig.resolveTextureFilter() : TextureFilter.Nearest;
         Array<TextureRegion> regions = new Array<>(def.frames.size);
         for (String rel : def.frames) {
             FileHandle fh = themeDir.child(rel);

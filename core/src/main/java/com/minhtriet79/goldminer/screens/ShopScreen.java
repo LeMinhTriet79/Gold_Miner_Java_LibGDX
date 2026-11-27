@@ -14,7 +14,7 @@ import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.ScreenUtils;
-import com.badlogic.gdx.utils.viewport.FitViewport;
+import com.badlogic.gdx.utils.viewport.ExtendViewport;
 import com.minhtriet79.goldminer.GoldMinerGame;
 import com.minhtriet79.goldminer.assets.AssetKey;
 import com.minhtriet79.goldminer.assets.Assets;
@@ -47,28 +47,38 @@ public class ShopScreen implements Screen {
 
     private final GoldMinerGame game;
     private final OrthographicCamera camera;
-    private final FitViewport viewport;
+    private final ExtendViewport viewport;
     private final Vector3 touchPoint = new Vector3();
 
+    private final int completedLevel;
     private final int nextLevelNumber;
     private final List<ShopOffer> offers;
     private final VegasButton[] slotButtons = new VegasButton[5];
     private final VegasButton nextLevelButton;
     private final VegasButton menuButton;
 
+    private float viewLeft = 0f;
+    private float viewBottom = 0f;
+    private float viewWidth = WorldBounds.WORLD_WIDTH;
+    private float viewHeight = WorldBounds.WORLD_HEIGHT;
+
     private float stateTime;
     private float buyAnimTimer = -1f;
     private String lexSpeech;
-    private String hoveredDesc = "Cham hoac re chuot vao mon do de xem cong dung.";
+    private String hoveredDesc = "Chạm hoặc rê chuột vào món đồ để xem công dụng.";
 
     public ShopScreen(GoldMinerGame game) {
+        this(game, game.getRunSession().getCurrentLevel());
+    }
+
+    public ShopScreen(GoldMinerGame game, int completedLevel) {
         this.game = game;
+        this.completedLevel = Math.max(1, Math.min(RunSession.MAX_W1_LEVEL, completedLevel));
         this.camera = new OrthographicCamera();
-        this.viewport = new FitViewport(WorldBounds.WORLD_WIDTH, WorldBounds.WORLD_HEIGHT, camera);
-        this.viewport.apply(true);
+        this.viewport = new ExtendViewport(WorldBounds.WORLD_WIDTH, WorldBounds.WORLD_HEIGHT, camera);
 
         RunSession run = game.getRunSession();
-        this.nextLevelNumber = Math.min(RunSession.MAX_W1_LEVEL, run.getCurrentLevel() + 1);
+        this.nextLevelNumber = Math.min(RunSession.MAX_W1_LEVEL, this.completedLevel + 1);
         this.offers = VegasW1ShopGenerator.generateOffers(nextLevelNumber, false, bound -> MathUtils.random(bound - 1));
 
         for (int i = 0; i < 5; i++) {
@@ -147,18 +157,19 @@ public class ShopScreen implements Screen {
             }
         }
 
-        if (Gdx.input.isKeyJustPressed(Input.Keys.ENTER) || Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
-            game.startLevel(nextLevelNumber);
+        if (Gdx.input.isKeyJustPressed(Input.Keys.ENTER) || Gdx.input.isKeyJustPressed(Input.Keys.SPACE)
+            || Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+            game.showWorldMap(nextLevelNumber);
             return;
         }
 
         if (Gdx.input.justTouched()) {
             if (nextLevelButton.contains(touchPoint.x, touchPoint.y)) {
-                game.startLevel(nextLevelNumber);
+                game.showWorldMap(nextLevelNumber);
                 return;
             }
             if (menuButton.contains(touchPoint.x, touchPoint.y)) {
-                game.showSettlement(false);
+                game.showWorldMap(nextLevelNumber);
                 return;
             }
             for (int i = 0; i < 5; i++) {
@@ -209,6 +220,18 @@ public class ShopScreen implements Screen {
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
 
+        // Extend shop trailer backdrop across extra ExtendViewport margins (zero black bars)
+        Texture white = game.getWhitePixel();
+        if (viewWidth > WorldBounds.WORLD_WIDTH || viewHeight > WorldBounds.WORLD_HEIGHT) {
+            batch.setColor(0.16f, 0.14f, 0.13f, 1f);
+            batch.draw(white, viewLeft - 2f, viewBottom - 2f, viewWidth + 4f, viewHeight + 4f);
+            batch.setColor(0.32f, 0.34f, 0.38f, 1f);
+            batch.draw(white, viewLeft - 2f, 76f, viewWidth + 4f, 168f);
+            batch.setColor(0.28f, 0.16f, 0.08f, 1f);
+            batch.draw(white, viewLeft - 2f, 0f, viewWidth + 4f, 76f);
+            batch.setColor(Color.WHITE);
+        }
+
         // 1. Interior behind counter window
         batch.draw(interior, 38f, 108f, 404f, 128f);
 
@@ -248,10 +271,10 @@ public class ShopScreen implements Screen {
 
         // 8. Top header bar: Mine Money ($), Next Level target hint, buttons
         hud.setColor(Color.GOLD);
-        hud.draw(batch, "TIEN MO ($): $" + run.getMineMoney() + "   |   THUOC NO: " + run.getDynamiteCount(),
+        hud.draw(batch, "TIỀN MỎ ($): $" + run.getMineMoney() + "   |   THUỐC NỔ: " + run.getDynamiteCount(),
             132f, 250f, 214f, Align.center, false);
         small.setColor(0.12f, 0.10f, 0.08f, 1f);
-        small.draw(batch, "CUA HANG AUSTRALIA - CHUAN BI MAN " + nextLevelNumber + "/6",
+        small.draw(batch, "CỬA HÀNG AUSTRALIA - MỞ KHÓA MÀN " + nextLevelNumber + "/6",
             126f, 265f, 224f, Align.center, false);
 
         menuButton.draw(batch, assets, viewport, touchPoint);
@@ -262,7 +285,14 @@ public class ShopScreen implements Screen {
 
     @Override
     public void resize(int width, int height) {
-        viewport.update(width, height, true);
+        viewport.update(width, height, false);
+        camera.position.set(WorldBounds.WORLD_WIDTH * 0.5f, WorldBounds.WORLD_HEIGHT * 0.5f, 0f);
+        camera.update();
+
+        viewWidth = viewport.getWorldWidth();
+        viewHeight = viewport.getWorldHeight();
+        viewLeft = camera.position.x - viewWidth * 0.5f;
+        viewBottom = camera.position.y - viewHeight * 0.5f;
     }
 
     @Override

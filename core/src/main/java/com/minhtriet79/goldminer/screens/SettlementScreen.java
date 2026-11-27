@@ -11,7 +11,7 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.ScreenUtils;
-import com.badlogic.gdx.utils.viewport.FitViewport;
+import com.badlogic.gdx.utils.viewport.ExtendViewport;
 import com.minhtriet79.goldminer.GoldMinerGame;
 import com.minhtriet79.goldminer.assets.AssetKey;
 import com.minhtriet79.goldminer.assets.Assets;
@@ -19,6 +19,7 @@ import com.minhtriet79.goldminer.domain.WorldBounds;
 import com.minhtriet79.goldminer.domain.account.AccountRecord;
 import com.minhtriet79.goldminer.domain.account.AccountService;
 import com.minhtriet79.goldminer.domain.settlement.SettlementSummary;
+import com.minhtriet79.goldminer.gameplay.ui.MenuTopHeader;
 import com.minhtriet79.goldminer.gameplay.ui.VegasButton;
 import com.minhtriet79.goldminer.persistence.SaveData;
 
@@ -30,19 +31,27 @@ public class SettlementScreen implements Screen {
 
     private final GoldMinerGame game;
     private final OrthographicCamera camera;
-    private final FitViewport viewport;
+    private final ExtendViewport viewport;
     private final Vector3 touchPoint = new Vector3();
 
     private final SettlementSummary summary;
     private final VegasButton playAgainButton;
+
+    private float viewLeft = 0f;
+    private float viewBottom = 0f;
+    private float viewWidth = WorldBounds.WORLD_WIDTH;
+    private float viewHeight = WorldBounds.WORLD_HEIGHT;
+    private float bgDrawX = 0f;
+    private float bgDrawY = 0f;
+    private float bgDrawW = WorldBounds.WORLD_WIDTH;
+    private float bgDrawH = WorldBounds.WORLD_HEIGHT;
 
     public SettlementScreen(GoldMinerGame game, SettlementSummary summary) {
         this.game = game;
         this.summary = summary;
 
         this.camera = new OrthographicCamera();
-        this.viewport = new FitViewport(WorldBounds.WORLD_WIDTH, WorldBounds.WORLD_HEIGHT, camera);
-        this.viewport.apply(true);
+        this.viewport = new ExtendViewport(WorldBounds.WORLD_WIDTH, WorldBounds.WORLD_HEIGHT, camera);
 
         this.playAgainButton = new VegasButton(
             174f, 18f, 132f, 26f,
@@ -82,7 +91,7 @@ public class SettlementScreen implements Screen {
 
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
-        batch.draw(bg, 0f, 0f, WorldBounds.WORLD_WIDTH, WorldBounds.WORLD_HEIGHT);
+        batch.draw(bg, bgDrawX, bgDrawY, bgDrawW, bgDrawH);
 
         banner.setColor(summary.completedWorld1 ? new Color(0.08f, 0.45f, 0.08f, 1f) : new Color(0.35f, 0.14f, 0.03f, 1f));
         String title = summary.completedWorld1 ? "CHINH PHUC WORLD 1 AUSTRALIA!" : "KET TOAN CHUYEN DAO VANG";
@@ -130,7 +139,20 @@ public class SettlementScreen implements Screen {
 
     @Override
     public void resize(int width, int height) {
-        viewport.update(width, height, true);
+        viewport.update(width, height, false);
+        camera.position.set(WorldBounds.WORLD_WIDTH * 0.5f, WorldBounds.WORLD_HEIGHT * 0.5f, 0f);
+        camera.update();
+
+        viewWidth = viewport.getWorldWidth();
+        viewHeight = viewport.getWorldHeight();
+        viewLeft = camera.position.x - viewWidth * 0.5f;
+        viewBottom = camera.position.y - viewHeight * 0.5f;
+
+        float bgScale = Math.max(viewWidth / WorldBounds.WORLD_WIDTH, viewHeight / WorldBounds.WORLD_HEIGHT);
+        bgDrawW = WorldBounds.WORLD_WIDTH * bgScale;
+        bgDrawH = WorldBounds.WORLD_HEIGHT * bgScale;
+        bgDrawX = MenuTopHeader.computeCoverFillX(viewLeft, viewWidth, bgDrawW);
+        bgDrawY = MenuTopHeader.computeCoverFillY(viewBottom, viewHeight, bgDrawH);
     }
 
     @Override

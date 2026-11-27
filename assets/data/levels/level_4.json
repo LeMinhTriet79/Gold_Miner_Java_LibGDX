@@ -4,8 +4,8 @@
   "themeHint": "australia",
   "trackN": 1,
   "durationSeconds": 60,
-  "goal": 4008,
-  "levelValue": 3185,
+  "goal": 2800,
+  "levelValue": 4917,
   "cartRange": {
     "minX": 12.0,
     "maxX": 468.0
@@ -316,6 +316,48 @@
       "radius": 8.2,
       "drawWidth": 25.5,
       "drawHeight": 8.8,
+      "moveSpeed": 0.0,
+      "animated": false
+    },
+    {
+      "objectN": 5,
+      "type": "gold_large",
+      "assetKey": "gold_large",
+      "x": 132.0,
+      "y": 28.0,
+      "value": 500,
+      "weight": 9,
+      "radius": 16.0,
+      "drawWidth": 40.0,
+      "drawHeight": 27.0,
+      "moveSpeed": 0.0,
+      "animated": false
+    },
+    {
+      "objectN": 5,
+      "type": "gold_large",
+      "assetKey": "gold_large",
+      "x": 348.0,
+      "y": 28.0,
+      "value": 500,
+      "weight": 9,
+      "radius": 16.0,
+      "drawWidth": 40.0,
+      "drawHeight": 27.0,
+      "moveSpeed": 0.0,
+      "animated": false
+    },
+    {
+      "objectN": 13,
+      "type": "diamond",
+      "assetKey": "diamond",
+      "x": 180.0,
+      "y": 28.0,
+      "value": 600,
+      "weight": 2,
+      "radius": 4.8,
+      "drawWidth": 9.5,
+      "drawHeight": 9.0,
       "moveSpeed": 0.0,
       "animated": false
     }
