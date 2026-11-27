@@ -69,10 +69,10 @@ public class MainMenuScreen implements Screen {
     private static final Color COL_TEXT_SHADOW = new Color(0.06f, 0.03f, 0.01f, 0.96f);
     private static final Color COL_POST = new Color(0.38f, 0.40f, 0.45f, 1f);
     private static final Color COL_POST_HI = new Color(0.56f, 0.59f, 0.64f, 1f);
-    private static final Color COL_BAR_BORDER = new Color(68f / 255f, 36f / 255f, 14f / 255f, 1f);
-    private static final Color COL_BAR_HI = new Color(246f / 255f, 200f / 255f, 108f / 255f, 1f);
-    private static final Color COL_BAR_MID = new Color(230f / 255f, 168f / 255f, 48f / 255f, 1f);
-    private static final Color COL_BAR_BODY = new Color(210f / 255f, 140f / 255f, 14f / 255f, 1f);
+    private static final Color COL_BAR_BORDER = new Color(74f / 255f, 38f / 255f, 22f / 255f, 1f);
+    private static final Color COL_BAR_HI = new Color(255f / 255f, 240f / 255f, 168f / 255f, 1f);
+    private static final Color COL_BAR_MID = new Color(250f / 255f, 208f / 255f, 84f / 255f, 1f);
+    private static final Color COL_BAR_BODY = new Color(236f / 255f, 164f / 255f, 32f / 255f, 1f);
     private static final Color COL_CREAM = new Color(0.99f, 0.95f, 0.82f, 1f);
     private static final Color COL_GOLD_TEXT = new Color(1.00f, 0.85f, 0.28f, 1f);
     private static final Color COL_ERROR_TEXT = new Color(1.00f, 0.48f, 0.42f, 1f);
@@ -466,8 +466,8 @@ public class MainMenuScreen implements Screen {
         batch.setColor(COL_POST_HI);
         batch.draw(white, postX + 1f, 24f, 1f, 26f);
 
-        float breathe = 0.5f + 0.5f * (float) Math.sin(elapsedTime * 4.2f);
-        float scale = 1.0f + 0.05f * playHoverAlpha + 0.01f * playHoverAlpha * breathe;
+        float breathe = 0.5f + 0.5f * (float) Math.sin(elapsedTime * 3.8f);
+        float scale = 1.0f + 0.04f * playHoverAlpha;
 
         float centerX = PLAY_X + PLAY_W * 0.5f;
         float centerY = PLAY_Y + PLAY_H * 0.5f;
@@ -482,28 +482,19 @@ public class MainMenuScreen implements Screen {
             drawH = PLAY_H;
         }
 
-        // Stepped 16-bit golden aura behind PLAY button on hover
+        // Subtle warm golden underlay halo BEHIND PLAY button on hover (alpha <= 0.22, never overlays button face)
         if (playHoverAlpha > 0.01f) {
             Texture glowTex = assets.getTexture(AssetKey.BTN_PLAY_GLOW);
             float glowW = drawW * PLAY_GLOW_SCALE_W;
             float glowH = drawH * PLAY_GLOW_SCALE_H;
-            batch.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE);
-            batch.setColor(1f, 0.90f, 0.42f, (0.58f + 0.24f * breathe) * playHoverAlpha);
+            batch.setColor(1f, 0.90f, 0.48f, (0.14f + 0.08f * breathe) * playHoverAlpha);
             batch.draw(glowTex, MathUtils.floor(centerX - glowW * 0.5f), MathUtils.floor(centerY - glowH * 0.5f), glowW, glowH);
-            batch.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
         }
 
         boolean showOver = playHovered || playHoverAlpha > 0.35f;
         Texture btnTex = assets.getTexture(showOver ? AssetKey.BTN_PLAY_OVER : AssetKey.BTN_PLAY_UP);
         batch.setColor(Color.WHITE);
         batch.draw(btnTex, MathUtils.floor(drawX), MathUtils.floor(drawY), MathUtils.floor(drawW), MathUtils.floor(drawH));
-
-        if (playHoverAlpha > 0.01f) {
-            batch.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE);
-            batch.setColor(1f, 0.95f, 0.65f, 0.18f * playHoverAlpha * (0.7f + 0.3f * breathe));
-            batch.draw(btnTex, MathUtils.floor(drawX), MathUtils.floor(drawY), MathUtils.floor(drawW), MathUtils.floor(drawH));
-            batch.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
-        }
         batch.setColor(Color.WHITE);
     }
 
