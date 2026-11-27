@@ -98,6 +98,26 @@ public class WorldMapScreen implements Screen {
     private String toastText = "";
     private float toastTimer = 0f;
 
+    // Pre-allocated zero-GC Game Juice state
+    private float caveAnchorNx = 0.85833f;
+    private float caveAnchorNy = 0.74815f;
+    private float caveAnchorX = 0f;
+    private float caveAnchorY = 0f;
+
+    private final float[] riverGlintNx;
+    private final float[] riverGlintNy;
+    private final float[] riverGlintX;
+    private final float[] riverGlintY;
+    private final int riverGlintCount;
+
+    private static final int CAVE_SPARK_COUNT = 8;
+    private final float[] caveSparkPhase = {0.0f, 0.75f, 1.5f, 2.25f, 3.0f, 3.75f, 4.5f, 5.25f};
+    private final float[] caveSparkOffsetX = {-12f, -6f, 0f, 7f, 13f, -9f, 4f, 10f};
+
+    private float startHoverAlpha = 0f;
+    private boolean prevStartHovered = false;
+    private int prevHoveredNodeIdx = -1;
+
     private final InputAdapter inputAdapter = new InputAdapter() {
         @Override
         public boolean keyDown(int keycode) {
@@ -159,6 +179,30 @@ public class WorldMapScreen implements Screen {
         waypointWorldX = new float[waypointCount];
         waypointWorldY = new float[waypointCount];
 
+        JsonValue caveAnchor = root != null ? root.get("caveSparkleAnchor") : null;
+        if (caveAnchor != null) {
+            caveAnchorNx = caveAnchor.getFloat("nx", 0.85833f);
+            caveAnchorNy = caveAnchor.getFloat("ny", 0.74815f);
+        }
+
+        JsonValue glintsArr = root != null ? root.get("riverGlints") : null;
+        if (glintsArr != null && glintsArr.size > 0) {
+            riverGlintCount = glintsArr.size;
+            riverGlintNx = new float[riverGlintCount];
+            riverGlintNy = new float[riverGlintCount];
+            for (int i = 0; i < riverGlintCount; i++) {
+                JsonValue g = glintsArr.get(i);
+                riverGlintNx[i] = g.getFloat("nx", 0.35f);
+                riverGlintNy[i] = g.getFloat("ny", 0.25f);
+            }
+        } else {
+            riverGlintCount = 3;
+            riverGlintNx = new float[] {0.35f, 0.32f, 0.43f};
+            riverGlintNy = new float[] {0.31f, 0.18f, 0.16f};
+        }
+        riverGlintX = new float[riverGlintCount];
+        riverGlintY = new float[riverGlintCount];
+
         int maxUnlocked = game.getMaxUnlockedLevel();
         int desired = Math.max(1, Math.min(LEVEL_COUNT, initialSelectedLevel));
         if (!game.isLevelUnlocked(desired)) {
@@ -208,6 +252,28 @@ public class WorldMapScreen implements Screen {
             return;
         }
 
+        boolean uiBlocked = topHeader.isBlockingModalOpen() || topHeader.isDropdownOpen();
+        boolean startHovered = !uiBlocked && startButtonRect.contains(touchPoint.x, touchPoint.y);
+        if (startHovered && !prevStartHovered) {
+            game.playHoverSfx();
+        }
+        prevStartHovered = startHovered;
+        startHoverAlpha = MathUtils.clamp(startHoverAlpha + (startHovered ? 10f : -8f) * dt, 0f, 1f);
+
+        int hoveredNodeIdx = -1;
+        if (!uiBlocked) {
+            for (int i = 0; i < LEVEL_COUNT; i++) {
+                if (game.isLevelUnlocked(i + 1) && nodeHitboxes[i].contains(touchPoint.x, touchPoint.y)) {
+                    hoveredNodeIdx = i;
+                    break;
+                }
+            }
+        }
+        if (hoveredNodeIdx != prevHoveredNodeIdx && hoveredNodeIdx >= 0) {
+            game.playHoverSfx();
+        }
+        prevHoveredNodeIdx = hoveredNodeIdx;
+
         ScreenUtils.clear(0.14f, 0.07f, 0.04f, 1f);
         viewport.apply();
 
@@ -221,18 +287,20 @@ public class WorldMapScreen implements Screen {
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
 
-        // 1. Clean 16-bit Australia Map (ZERO stars, ZERO sparkles, NEAREST pixel grid)
+        // 1. Clean 16-bit Australia Map (ZERO stars, NEAREST pixel grid) + River Shimmer + Golden Cave
         batch.setColor(Color.WHITE);
         batch.draw(assets.getTexture(AssetKey.BG_MAP_AUSTRALIA), bgDrawX, bgDrawY, bgDrawW, bgDrawH);
+        drawRiverGlints(batch, white);
+        drawGoldCaveAndSparkles(batch, assets, white);
 
-        // 2. Render 6 Circular Level Nodes (Cleared checkmarks / Selected glow / Locked padlocks — NO STARS)
-        drawMapNodes(batch, assets, hud);
+        // 2. Render 6 Circular Level Nodes (Cleared checkmarks / Selected glow / Locked padlocks - NO STARS)
+        drawMapNodes(batch, assets, hud, hoveredNodeIdx);
 
-        // 3. Render Mini-Miner walking or idling at active trail coordinate
-        drawMiniMiner(batch, assets);
+        // 3. Render Mini-Miner walking/hopping or idling with foot shadow at active trail coordinate
+        drawMiniMiner(batch, assets, white);
 
         // 4. Bottom-Right Preview Box ("LEVEL N", "TARGET: $...", "[START]")
-        drawPreviewBox(batch, assets, small, hud);
+        drawPreviewBox(batch, assets, white, small, hud, startHovered);
 
         // 5. Optional feedback toast (locked click or F9 unlock-all)
         if (toastTimer > 0f && !toastText.isEmpty()) {
@@ -273,7 +341,52 @@ public class WorldMapScreen implements Screen {
         walkAnimTimer += dt;
     }
 
-    private void drawMapNodes(SpriteBatch batch, Assets assets, BitmapFont hud) {
+    private void drawRiverGlints(SpriteBatch batch, Texture white) {
+        for (int i = 0; i < riverGlintCount; i++) {
+            float wave = MathUtils.sin(elapsedTime * 2.8f + i * 1.35f);
+            if (wave <= 0.05f) {
+                continue;
+            }
+            float gx = MathUtils.floor(riverGlintX[i] + 2f * MathUtils.sin(elapsedTime * 1.4f + i));
+            float gy = MathUtils.floor(riverGlintY[i]);
+            float len = wave > 0.65f ? 5f : 3f;
+            batch.setColor(0.84f, 0.99f, 1.00f, 0.65f * wave);
+            batch.draw(white, gx, gy, len, 1f);
+            if (wave > 0.75f) {
+                batch.draw(white, gx + 1f, gy - 2f, 2f, 1f);
+            }
+        }
+        batch.setColor(Color.WHITE);
+    }
+
+    private void drawGoldCaveAndSparkles(SpriteBatch batch, Assets assets, Texture white) {
+        // Draw ComfyUI golden cave arch tucked right behind Lv6 trail node
+        Texture caveTex = assets.getTexture(AssetKey.MAP_GOLD_CAVE);
+        float caveX = MathUtils.floor(nodeWorldX[LEVEL_COUNT - 1] + 4f);
+        float caveY = MathUtils.floor(nodeWorldY[LEVEL_COUNT - 1] - 3f);
+        batch.setColor(Color.WHITE);
+        batch.draw(caveTex, caveX, caveY, 36f, 29f);
+
+        // 8 rising golden pixel sparkles above cave entrance (zero GC)
+        for (int i = 0; i < CAVE_SPARK_COUNT; i++) {
+            float life = (elapsedTime * 0.65f + caveSparkPhase[i] * 0.14f) % 1.0f;
+            float sx = MathUtils.floor(caveAnchorX + caveSparkOffsetX[i] + 2f * MathUtils.sin(elapsedTime * 3f + i));
+            float sy = MathUtils.floor(caveAnchorY + life * 16f);
+            float alpha = (1f - life) * MathUtils.sin(life * MathUtils.PI);
+            if (alpha <= 0.04f) {
+                continue;
+            }
+            batch.setColor(1.00f, 0.94f, 0.42f, MathUtils.clamp(alpha * 1.15f, 0f, 0.92f));
+            batch.draw(white, sx, sy, 1f, 1f);
+            if (life > 0.25f && life < 0.72f) {
+                batch.draw(white, sx - 1f, sy, 3f, 1f);
+                batch.draw(white, sx, sy - 1f, 1f, 3f);
+            }
+        }
+        batch.setColor(Color.WHITE);
+    }
+
+    private void drawMapNodes(SpriteBatch batch, Assets assets, BitmapFont hud, int hoveredNodeIdx) {
         Texture glowTex = assets.getTexture(AssetKey.MAP_NODE_GLOW);
         Texture discCleared = assets.getTexture(AssetKey.MAP_NODE_CLEARED);
         Texture discUnlocked = assets.getTexture(AssetKey.MAP_NODE_UNLOCKED);
@@ -283,30 +396,33 @@ public class WorldMapScreen implements Screen {
         Texture lockSmall = assets.getTexture(AssetKey.MAP_LOCK_SMALL);
         Texture lockBig = assets.getTexture(AssetKey.MAP_LOCK_BIG);
 
-        float pulse = 0.5f + 0.5f * (float) Math.sin(elapsedTime * 4.8f);
+        float pulse = 0.5f + 0.5f * MathUtils.sin(elapsedTime * 4.8f);
 
         for (int i = 0; i < LEVEL_COUNT; i++) {
             int level = i + 1;
             boolean unlocked = game.isLevelUnlocked(level);
             boolean cleared = game.isLevelCleared(level);
             boolean selected = (level == selectedLevel);
-            boolean hovered = !topHeader.isBlockingModalOpen() && !topHeader.isDropdownOpen()
-                && nodeHitboxes[i].contains(touchPoint.x, touchPoint.y);
+            boolean hovered = (hoveredNodeIdx == i);
 
             float cx = nodeWorldX[i];
             float cy = nodeWorldY[i];
 
             if (selected) {
+                float glowScale = 0.96f + 0.12f * pulse;
+                float gw = 48f * glowScale;
+                float gh = 34f * glowScale;
                 batch.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE);
-                batch.setColor(0.90f, 1.00f, 0.52f, 0.55f + 0.35f * pulse);
-                batch.draw(glowTex, MathUtils.floor(cx - 24f), MathUtils.floor(cy - 17f), 48f, 34f);
+                batch.setColor(0.90f, 1.00f, 0.52f, 0.52f + 0.32f * pulse);
+                batch.draw(glowTex, MathUtils.floor(cx - gw * 0.5f), MathUtils.floor(cy - gh * 0.5f),
+                    MathUtils.floor(gw), MathUtils.floor(gh));
                 batch.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
             }
 
             Texture disc = selected ? discSelected : (cleared ? discCleared : (unlocked ? discUnlocked : discLocked));
             int dw = selected ? 36 : 34;
             int dh = selected ? 24 : 22;
-            int dy = MathUtils.floor(cy - dh * 0.5f) + (hovered && unlocked ? 1 : 0);
+            int dy = MathUtils.floor(cy - dh * 0.5f) + (hovered ? 1 : 0);
             batch.setColor(Color.WHITE);
             batch.draw(disc, MathUtils.floor(cx - dw * 0.5f), dy, dw, dh);
 
@@ -316,7 +432,7 @@ public class WorldMapScreen implements Screen {
             MenuTopHeader.drawShadowText(hud, batch, LEVEL_NUM_LABELS[i],
                 MathUtils.floor(cx - 14f), numY, 28f, Align.center, false, numCol);
 
-            // Strictly NO STARS: only green/gold checkmark above cleared nodes, padlock above locked nodes
+            // Strictly NO STARS: only emerald/gold checkmark above cleared nodes, padlock above locked nodes
             if (cleared) {
                 batch.setColor(Color.WHITE);
                 batch.draw(checkBadge, MathUtils.floor(cx + 8f), MathUtils.floor(cy + 6f), 14f, 14f);
@@ -330,28 +446,41 @@ public class WorldMapScreen implements Screen {
         }
     }
 
-    private void drawMiniMiner(SpriteBatch batch, Assets assets) {
+    private void drawMiniMiner(SpriteBatch batch, Assets assets, Texture white) {
         boolean walking = Math.abs(targetWaypointPos - minerWaypointPos) > 0.01f;
         float mx = sampleWaypointWorldX(minerWaypointPos);
         float my = sampleWaypointWorldY(minerWaypointPos);
 
-        boolean useWalkFrame = walking && ((int) (walkAnimTimer / 0.13f) % 2 == 1);
+        // Parabolic hop arc across each trail segment when walking
+        float segT = minerWaypointPos - MathUtils.floor(minerWaypointPos);
+        float hopArc = walking ? 8f * 4f * segT * (1f - segT) : 0f;
+        float idleBob = walking ? 0f : (MathUtils.sin(elapsedTime * 4.2f) > 0.35f ? 1f : 0f);
+
+        // Soft pixel shadow anchored directly on road beneath feet
+        float shadowScale = walking ? MathUtils.clamp(1.0f - (hopArc / 24f), 0.55f, 1.0f) : 1.0f;
+        float sw = MathUtils.floor(16f * shadowScale);
+        float sh = MathUtils.floor(4f * shadowScale);
+        batch.setColor(0.14f, 0.07f, 0.03f, 0.42f * shadowScale);
+        batch.draw(white, MathUtils.floor(mx - sw * 0.5f), MathUtils.floor(my + 2f), sw, Math.max(2f, sh));
+
+        boolean useWalkFrame = walking && (hopArc > 2.2f || ((int) (walkAnimTimer / 0.11f) % 2 == 1));
         Texture minerTex = assets.getTexture(useWalkFrame ? AssetKey.MAP_MINI_MINER_WALK : AssetKey.MAP_MINI_MINER_IDLE);
 
-        float idleBob = walking ? 0f : (Math.sin(elapsedTime * 3.6f) > 0.4 ? 1f : 0f);
         int drawX = MathUtils.floor(mx - 12f);
-        int drawY = MathUtils.floor(my + 4f + idleBob);
+        int drawY = MathUtils.floor(my + 3f + idleBob + hopArc);
         batch.setColor(Color.WHITE);
         batch.draw(
             minerTex,
             drawX, drawY,
-            24f, 32f,
+            24f, 33f,
             0, 0, minerTex.getWidth(), minerTex.getHeight(),
             !minerFacingRight, false
         );
     }
 
-    private void drawPreviewBox(SpriteBatch batch, Assets assets, BitmapFont small, BitmapFont hud) {
+    private void drawPreviewBox(
+        SpriteBatch batch, Assets assets, Texture white, BitmapFont small, BitmapFont hud, boolean startHovered
+    ) {
         int px = MathUtils.floor(previewBoxRect.x);
         int py = MathUtils.floor(previewBoxRect.y);
         batch.setColor(Color.WHITE);
@@ -363,16 +492,29 @@ public class WorldMapScreen implements Screen {
         MenuTopHeader.drawShadowText(small, batch, TARGET_LABELS[idx],
             px, py + 51f, previewBoxRect.width, Align.center, false, COL_CREAM);
 
-        boolean overStart = !topHeader.isBlockingModalOpen() && !topHeader.isDropdownOpen()
-            && startButtonRect.contains(touchPoint.x, touchPoint.y);
+        float breathScale = 1.0f + 0.025f * (0.5f + 0.5f * MathUtils.sin(elapsedTime * 3.4f));
+        float scale = MathUtils.lerp(breathScale, 1.045f, startHoverAlpha);
+        float scx = startButtonRect.x + startButtonRect.width * 0.5f;
+        float scy = startButtonRect.y + startButtonRect.height * 0.5f;
+        float sw = startButtonRect.width * scale;
+        float sh = startButtonRect.height * scale;
+        float sx = MathUtils.floor(scx - sw * 0.5f);
+        float sy = MathUtils.floor(scy - sh * 0.5f);
+
+        if (startHoverAlpha > 0.01f) {
+            batch.setColor(1.00f, 0.90f, 0.44f, 0.22f * startHoverAlpha);
+            batch.draw(white, sx - 2f, sy - 2f, MathUtils.floor(sw) + 4f, MathUtils.floor(sh) + 4f);
+        }
+
+        boolean showOver = startHovered || startHoverAlpha > 0.35f;
         batch.setColor(Color.WHITE);
         batch.draw(
-            assets.getTexture(overStart ? AssetKey.UI_BTN_GREEN_OVER : AssetKey.UI_BTN_GREEN_UP),
-            startButtonRect.x, startButtonRect.y, startButtonRect.width, startButtonRect.height
+            assets.getTexture(showOver ? AssetKey.UI_BTN_GREEN_OVER : AssetKey.UI_BTN_GREEN_UP),
+            sx, sy, MathUtils.floor(sw), MathUtils.floor(sh)
         );
-        float startY = MathUtils.floor(startButtonRect.y + (startButtonRect.height + hud.getCapHeight()) * 0.5f);
+        float startY = MathUtils.floor(sy + (MathUtils.floor(sh) + hud.getCapHeight()) * 0.5f);
         MenuTopHeader.drawShadowText(hud, batch, "START",
-            startButtonRect.x, startY, startButtonRect.width, Align.center, false, Color.WHITE);
+            sx, startY, MathUtils.floor(sw), Align.center, false, Color.WHITE);
     }
 
     private boolean handleInput() {
@@ -500,6 +642,12 @@ public class WorldMapScreen implements Screen {
         for (int i = 0; i < waypointCount; i++) {
             waypointWorldX[i] = bgDrawX + waypointNx[i] * bgDrawW;
             waypointWorldY[i] = bgDrawY + waypointNy[i] * bgDrawH;
+        }
+        caveAnchorX = bgDrawX + caveAnchorNx * bgDrawW;
+        caveAnchorY = bgDrawY + caveAnchorNy * bgDrawH;
+        for (int i = 0; i < riverGlintCount; i++) {
+            riverGlintX[i] = bgDrawX + riverGlintNx[i] * bgDrawW;
+            riverGlintY[i] = bgDrawY + riverGlintNy[i] * bgDrawH;
         }
 
         float viewRight = viewLeft + viewWidth;

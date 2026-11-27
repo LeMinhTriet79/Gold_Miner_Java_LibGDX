@@ -8,6 +8,7 @@ import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.audio.Music;
 import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.Texture.TextureFilter;
@@ -80,6 +81,13 @@ public class GoldMinerGame extends Game {
     private Screen pendingScreen;
     private boolean hasPendingScreen;
 
+    // Warm espresso cross-fade screen transition (0.18s total, zero GC)
+    private static final float FADE_HALF_DURATION = 0.09f;
+    private final OrthographicCamera transitionCamera = new OrthographicCamera();
+    private Screen fadeTargetScreen;
+    private float fadeAlpha = 0f;
+    private int fadePhase = 0; // 0 = idle, 1 = fading out, 2 = fading in
+
     public GoldMinerGame() {
         this(false);
     }
@@ -141,6 +149,9 @@ public class GoldMinerGame extends Game {
     }
 
     private void switchScreen(Screen nextScreen) {
+        fadeTargetScreen = null;
+        fadePhase = 0;
+        fadeAlpha = 0f;
         if (getScreen() == null) {
             setScreenNow(nextScreen);
             return;
@@ -150,6 +161,24 @@ public class GoldMinerGame extends Game {
         }
         pendingScreen = nextScreen;
         hasPendingScreen = true;
+    }
+
+    private void transitionToScreen(Screen nextScreen) {
+        if (getScreen() == null) {
+            setScreenNow(nextScreen);
+            return;
+        }
+        if (fadeTargetScreen != null && fadeTargetScreen != nextScreen) {
+            fadeTargetScreen.dispose();
+        }
+        fadeTargetScreen = nextScreen;
+        if (fadePhase == 0) {
+            fadePhase = 1;
+            fadeAlpha = 0f;
+        } else if (fadePhase == 2) {
+            // Reverse back to fade-out smoothly from current alpha
+            fadePhase = 1;
+        }
     }
 
     private void setScreenNow(Screen nextScreen) {
@@ -181,6 +210,44 @@ public class GoldMinerGame extends Game {
         applyPendingScreen();
         super.render();
         applyPendingScreen();
+        updateAndDrawTransition();
+    }
+
+    private void updateAndDrawTransition() {
+        if (fadePhase == 0) {
+            return;
+        }
+        float dt = Math.min(Gdx.graphics.getDeltaTime(), 0.05f);
+        if (fadePhase == 1) {
+            fadeAlpha = Math.min(1f, fadeAlpha + dt / FADE_HALF_DURATION);
+            if (fadeAlpha >= 1f) {
+                Screen next = fadeTargetScreen;
+                fadeTargetScreen = null;
+                fadePhase = 2;
+                if (next != null) {
+                    setScreenNow(next);
+                }
+            }
+        } else if (fadePhase == 2) {
+            fadeAlpha = Math.max(0f, fadeAlpha - dt / FADE_HALF_DURATION);
+            if (fadeAlpha <= 0f) {
+                fadePhase = 0;
+            }
+        }
+
+        if (fadeAlpha > 0.005f && batch != null && whitePixel != null) {
+            int bw = Math.max(1, Gdx.graphics.getWidth());
+            int bh = Math.max(1, Gdx.graphics.getHeight());
+            Gdx.gl.glViewport(0, 0, Gdx.graphics.getBackBufferWidth(), Gdx.graphics.getBackBufferHeight());
+            transitionCamera.setToOrtho(false, bw, bh);
+            transitionCamera.update();
+            batch.setProjectionMatrix(transitionCamera.combined);
+            batch.begin();
+            batch.setColor(0.12f, 0.06f, 0.03f, fadeAlpha);
+            batch.draw(whitePixel, 0f, 0f, bw, bh);
+            batch.setColor(Color.WHITE);
+            batch.end();
+        }
     }
 
     private void handleGlobalHotkeys() {
@@ -259,35 +326,35 @@ public class GoldMinerGame extends Game {
     }
 
     public void showMainMenu() {
-        switchScreen(new MainMenuScreen(this, "main_menu.json", null));
+        transitionToScreen(new MainMenuScreen(this, "main_menu.json", null));
     }
 
     public void showWorldHub() {
-        switchScreen(new WorldHubScreen(this));
+        transitionToScreen(new WorldHubScreen(this));
     }
 
     public void showGoldMineSelector() {
-        switchScreen(new GoldMineScreen(this));
+        transitionToScreen(new GoldMineScreen(this));
     }
 
     public void showWorldMap(int initialSelectedLevel) {
         int clamped = Math.max(1, Math.min(RunSession.MAX_W1_LEVEL, initialSelectedLevel));
-        switchScreen(new WorldMapScreen(this, clamped));
+        transitionToScreen(new WorldMapScreen(this, clamped));
     }
 
     public void startNewCampaign() {
         runSession.startNewRun();
-        switchScreen(new PlayScreen(this, 1));
+        transitionToScreen(new PlayScreen(this, 1));
     }
 
     public void startLevel(int levelNumber) {
         int clamped = Math.max(1, Math.min(RunSession.MAX_W1_LEVEL, levelNumber));
-        switchScreen(new PlayScreen(this, clamped));
+        transitionToScreen(new PlayScreen(this, clamped));
     }
 
     public void startMapLevel(int levelNumber) {
         int clamped = Math.max(1, Math.min(RunSession.MAX_W1_LEVEL, levelNumber));
-        switchScreen(PlayScreen.forMapLevel(this, clamped));
+        transitionToScreen(PlayScreen.forMapLevel(this, clamped));
     }
 
     public void startLevelPlayTest(String levelFileName, Runnable backToStudioAction) {
@@ -302,15 +369,15 @@ public class GoldMinerGame extends Game {
 
     public void showLevelResult(boolean passed, int scoreEarnedThisLevel) {
         runSession.finishLevel(passed);
-        switchScreen(new LevelResultScreen(this, passed, scoreEarnedThisLevel));
+        transitionToScreen(new LevelResultScreen(this, passed, scoreEarnedThisLevel));
     }
 
     public void showShop() {
-        switchScreen(new ShopScreen(this));
+        transitionToScreen(new ShopScreen(this));
     }
 
     public void showShopFromLevelWin(int completedLevel) {
-        switchScreen(new ShopScreen(this, completedLevel));
+        transitionToScreen(new ShopScreen(this, completedLevel));
     }
 
     public void showSettlement(boolean completedWorld1) {
@@ -319,7 +386,7 @@ public class GoldMinerGame extends Game {
         if (accountService != null) {
             accountService.recordSettlement(summary);
         }
-        switchScreen(new SettlementScreen(this, summary));
+        transitionToScreen(new SettlementScreen(this, summary));
     }
 
     public void setExternalFileDropListener(ExternalFileDropListener listener) {
@@ -335,6 +402,13 @@ public class GoldMinerGame extends Game {
     public void toggleMuted() {
         muted = !muted;
         syncMusicVolumes();
+    }
+
+    public void playHoverSfx() {
+        if (muted || assets == null) {
+            return;
+        }
+        assets.getSound(AssetKey.SFX_TALLY).play(0.15f);
     }
 
     public void playMusic(String musicKey, float baseVolume) {
@@ -435,6 +509,10 @@ public class GoldMinerGame extends Game {
 
     @Override
     public void dispose() {
+        if (fadeTargetScreen != null) {
+            fadeTargetScreen.dispose();
+            fadeTargetScreen = null;
+        }
         if (pendingScreen != null) {
             pendingScreen.dispose();
             pendingScreen = null;

@@ -124,6 +124,8 @@ public final class AssetKey {
     public static final String UI_MAP_PREVIEW = "ui_map_preview";
     public static final String MAP_MINI_MINER_IDLE = "map_mini_miner_idle";
     public static final String MAP_MINI_MINER_WALK = "map_mini_miner_walk";
+    public static final String MAP_GOLD_CAVE = "map_gold_cave";
+    public static final String MINER_MINI = "miner_mini";
     public static final String MAP_NODE_CLEARED = "map_node_cleared";
     public static final String MAP_NODE_UNLOCKED = "map_node_unlocked";
     public static final String MAP_NODE_SELECTED = "map_node_selected";

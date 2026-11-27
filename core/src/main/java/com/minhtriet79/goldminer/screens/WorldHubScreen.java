@@ -71,6 +71,21 @@ public class WorldHubScreen implements Screen {
     private String comingSoonFeature = null;
     private float elapsedTime = 0f;
 
+    // Pre-allocated zero-GC Game Juice state
+    private final float[] cardHoverAlpha = new float[4];
+    private final float[] cardSheenTime = new float[4];
+    private int prevHoveredCard = -1;
+
+    private static final int CLOUD_COUNT = 3;
+    private final float[] cloudBaseNx = {0.12f, 0.50f, 0.84f};
+    private final float[] cloudNy = {0.82f, 0.76f, 0.86f};
+    private final float[] cloudW = {46f, 58f, 38f};
+
+    private static final int POLLEN_COUNT = 12;
+    private final float[] pollenNx = {0.06f, 0.14f, 0.21f, 0.34f, 0.48f, 0.54f, 0.68f, 0.77f, 0.88f, 0.94f, 0.29f, 0.62f};
+    private final float[] pollenNy = {0.22f, 0.64f, 0.41f, 0.78f, 0.30f, 0.56f, 0.19f, 0.68f, 0.44f, 0.74f, 0.15f, 0.83f};
+    private final float[] pollenPhase = {0.1f, 0.9f, 1.7f, 2.5f, 0.5f, 1.3f, 2.2f, 3.0f, 0.8f, 1.9f, 2.8f, 1.1f};
+
     private final InputAdapter inputAdapter = new InputAdapter() {
         @Override
         public boolean keyDown(int keycode) {
@@ -109,6 +124,27 @@ public class WorldHubScreen implements Screen {
             return;
         }
 
+        boolean blocked = comingSoonFeature != null || topHeader.isBlockingModalOpen() || topHeader.isDropdownOpen();
+        int hoveredIdx = -1;
+        for (int i = 0; i < 4; i++) {
+            boolean hover = !blocked && cardRects[i].contains(touchPoint.x, touchPoint.y);
+            if (hover) {
+                hoveredIdx = i;
+            }
+            cardHoverAlpha[i] = MathUtils.clamp(cardHoverAlpha[i] + (hover ? 12f : -10f) * dt, 0f, 1f);
+            if (cardSheenTime[i] > 0f) {
+                cardSheenTime[i] += dt;
+                if (cardSheenTime[i] > 0.42f) {
+                    cardSheenTime[i] = 0f;
+                }
+            }
+        }
+        if (hoveredIdx != prevHoveredCard && hoveredIdx >= 0) {
+            game.playHoverSfx();
+            cardSheenTime[hoveredIdx] = 0.0001f;
+        }
+        prevHoveredCard = hoveredIdx;
+
         ScreenUtils.clear(0.08f, 0.04f, 0.02f, 1f);
         viewport.apply();
 
@@ -121,27 +157,44 @@ public class WorldHubScreen implements Screen {
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
 
-        // Cover-fill 16-bit canyon backdrop (zero black bars)
+        // Cover-fill 16-bit valley backdrop + warm translucent scrim + ambient clouds/pollen
         batch.setColor(Color.WHITE);
         batch.draw(assets.getTexture(AssetKey.BG_HUB_CANYON), bgDrawX, bgDrawY, bgDrawW, bgDrawH);
+        drawHubAtmosphere(batch, white);
 
-        // 2x2 Wooden-brass Hub Cards
-        boolean blocked = comingSoonFeature != null || topHeader.isBlockingModalOpen() || topHeader.isDropdownOpen();
+        // 2x2 Wooden-brass Hub Cards with smooth lift, scale, sheen, & unified gold static text
         for (int i = 0; i < 4; i++) {
             Rectangle r = cardRects[i];
-            boolean hover = !blocked && r.contains(touchPoint.x, touchPoint.y);
-            int drawX = MathUtils.floor(r.x);
-            int drawY = MathUtils.floor(r.y) + (hover ? 1 : 0);
+            float ha = cardHoverAlpha[i];
+            float scale = 1.0f + 0.035f * ha;
+            float liftY = 3.0f * ha;
+            float cx = r.x + r.width * 0.5f;
+            float cy = r.y + r.height * 0.5f + liftY;
+            float cardW = r.width * scale;
+            float cardH = r.height * scale;
+            float drawX = MathUtils.floor(cx - cardW * 0.5f);
+            float drawY = MathUtils.floor(cy - cardH * 0.5f);
 
+            float artW = 156f * scale;
+            float artH = 66f * scale;
             batch.setColor(Color.WHITE);
-            batch.draw(assets.getTexture(CARD_ART_KEYS[i]), drawX + 4, drawY + 18, 156f, 66f);
+            batch.draw(assets.getTexture(CARD_ART_KEYS[i]),
+                MathUtils.floor(drawX + 4f * scale), MathUtils.floor(drawY + 18f * scale),
+                MathUtils.floor(artW), MathUtils.floor(artH));
+
+            if (cardSheenTime[i] > 0f) {
+                drawCardSheen(batch, white, drawX + 4f * scale, drawY + 18f * scale, artW, artH, cardSheenTime[i] / 0.42f);
+            }
+
+            boolean showOver = (hoveredIdx == i) || ha > 0.35f;
+            batch.setColor(Color.WHITE);
             batch.draw(
-                assets.getTexture(hover ? AssetKey.UI_HUB_CARD_FRAME_OVER : AssetKey.UI_HUB_CARD_FRAME),
-                drawX, drawY, r.width, r.height
+                assets.getTexture(showOver ? AssetKey.UI_HUB_CARD_FRAME_OVER : AssetKey.UI_HUB_CARD_FRAME),
+                drawX, drawY, MathUtils.floor(cardW), MathUtils.floor(cardH)
             );
-            float labelY = MathUtils.floor(drawY + 4 + (14f + hud.getCapHeight()) * 0.5f);
-            MenuTopHeader.drawShadowText(hud, batch, CARD_LABELS[i], drawX, labelY, r.width, Align.center, false,
-                hover ? Color.WHITE : COL_GOLD);
+            float labelY = MathUtils.floor(drawY + 4f * scale + (14f * scale + hud.getCapHeight()) * 0.5f);
+            MenuTopHeader.drawShadowText(hud, batch, CARD_LABELS[i], drawX, labelY, MathUtils.floor(cardW), Align.center, false,
+                showOver ? COL_CREAM : COL_GOLD);
         }
 
         // Shared Top Chrome + Profile Card
@@ -154,6 +207,51 @@ public class WorldHubScreen implements Screen {
 
         batch.setColor(Color.WHITE);
         batch.end();
+    }
+
+    private void drawHubAtmosphere(SpriteBatch batch, Texture white) {
+        // Soft warm sepia-gold scrim so wooden cards pop cleanly over scenic horizon
+        batch.setColor(0.16f, 0.10f, 0.05f, 0.16f);
+        batch.draw(white, viewLeft - 2f, viewBottom - 2f, viewWidth + 4f, viewHeight + 4f);
+
+        // Gently drifting layered pixel clouds
+        for (int i = 0; i < CLOUD_COUNT; i++) {
+            float nx = (cloudBaseNx[i] + elapsedTime * (0.008f + i * 0.003f)) % 1.2f - 0.1f;
+            float cx = MathUtils.floor(viewLeft + nx * viewWidth);
+            float cy = MathUtils.floor(viewBottom + cloudNy[i] * viewHeight);
+            float w = cloudW[i];
+            batch.setColor(1.00f, 0.97f, 0.86f, 0.20f);
+            batch.draw(white, cx, cy, w, 4f);
+            batch.draw(white, cx + 6f, cy + 4f, w - 14f, 3f);
+        }
+
+        // Drifting warm pollen sparkles behind cards
+        for (int i = 0; i < POLLEN_COUNT; i++) {
+            float nx = (pollenNx[i] + elapsedTime * 0.012f + 0.014f * MathUtils.sin(elapsedTime + pollenPhase[i])) % 1.0f;
+            float ny = (pollenNy[i] + elapsedTime * 0.015f) % 0.92f + 0.04f;
+            float alpha = 0.18f + 0.18f * (0.5f + 0.5f * MathUtils.sin(elapsedTime * 2.4f + pollenPhase[i]));
+            batch.setColor(1.00f, 0.94f, 0.68f, alpha);
+            batch.draw(white, MathUtils.floor(viewLeft + nx * viewWidth), MathUtils.floor(viewBottom + ny * viewHeight),
+                (i % 3 == 0) ? 2f : 1f, (i % 3 == 0) ? 2f : 1f);
+        }
+        batch.setColor(Color.WHITE);
+    }
+
+    private void drawCardSheen(SpriteBatch batch, Texture white, float x, float y, float w, float h, float t) {
+        float bandCenterX = x + MathUtils.lerp(-18f, w + 18f, t);
+        int strips = 6;
+        float stripH = h / strips;
+        batch.setColor(1.00f, 0.98f, 0.86f, 0.18f * (1f - Math.abs(t - 0.5f) * 1.4f));
+        for (int s = 0; s < strips; s++) {
+            float sx = bandCenterX + (s - strips * 0.5f) * 5f;
+            float left = Math.max(x, sx - 6f);
+            float right = Math.min(x + w, sx + 6f);
+            if (right > left) {
+                batch.draw(white, MathUtils.floor(left), MathUtils.floor(y + s * stripH),
+                    MathUtils.floor(right - left), MathUtils.ceil(stripH));
+            }
+        }
+        batch.setColor(Color.WHITE);
     }
 
     private void drawComingSoonModal(

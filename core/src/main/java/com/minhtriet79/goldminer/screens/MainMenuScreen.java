@@ -229,6 +229,25 @@ public class MainMenuScreen implements Screen {
 
     private float elapsedTime = 0f;
     private float playHoverAlpha = 0f;
+    private boolean prevPlayHovered = false;
+
+    // Pre-allocated warm sun-dust motes & 3 gold-nugget sparkle positions (zero GC in render)
+    private static final int DUST_COUNT = 14;
+    private final float[] dustNx = {
+        0.07f, 0.14f, 0.22f, 0.31f, 0.43f, 0.51f, 0.59f,
+        0.66f, 0.72f, 0.78f, 0.85f, 0.91f, 0.27f, 0.63f
+    };
+    private final float[] dustNy = {
+        0.18f, 0.64f, 0.35f, 0.79f, 0.24f, 0.55f, 0.84f,
+        0.41f, 0.68f, 0.22f, 0.58f, 0.31f, 0.49f, 0.74f
+    };
+    private final float[] dustPhase = {
+        0.2f, 1.1f, 2.0f, 2.7f, 0.6f, 1.8f, 3.1f,
+        0.9f, 2.3f, 1.4f, 2.9f, 0.4f, 1.6f, 2.5f
+    };
+    private static final float[] NUGGET_SPARK_NX = {0.372f, 0.398f, 0.382f};
+    private static final float[] NUGGET_SPARK_NY = {0.478f, 0.455f, 0.422f};
+    private static final float[] NUGGET_SPARK_PHASE = {0.0f, 1.05f, 2.15f};
 
     private final InputAdapter inputProcessor = new InputAdapter() {
         @Override
@@ -342,6 +361,10 @@ public class MainMenuScreen implements Screen {
         boolean loggedIn = accountService != null && accountService.isLoggedIn();
         boolean playInteractive = loggedIn && !dropdownOpen && activeModal == MODAL_NONE;
         boolean playHovered = playInteractive && playBounds.contains(touchPoint.x, touchPoint.y);
+        if (playHovered && !prevPlayHovered) {
+            game.playHoverSfx();
+        }
+        prevPlayHovered = playHovered;
 
         if (playHovered) {
             playHoverAlpha = Math.min(1f, playHoverAlpha + dt * 8f);
@@ -365,6 +388,9 @@ public class MainMenuScreen implements Screen {
 
         // 1. Cover-fill 16-bit western gold mine backdrop (zero black bars at any aspect ratio)
         batch.draw(assets.getTexture(AssetKey.BG_MENU_16BIT), bgDrawX, bgDrawY, bgDrawW, bgDrawH);
+
+        // 1b. Soft drifting golden sun-dust motes & 4-point sparkles on miner's gold nugget
+        drawDustAndNuggetSparkles(batch, white);
 
         // 2. Extended edge-to-edge 16-bit golden bottom bar across full viewport width
         drawFullWidthBottomBar(batch, white);
@@ -446,12 +472,43 @@ public class MainMenuScreen implements Screen {
             float by = bulbWorldY[i];
 
             batch.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE);
-            batch.setColor(0.76f, 0.94f, 1.0f, 0.50f * intensity);
+            batch.setColor(1.00f, 0.90f, 0.56f, 0.52f * intensity);
             batch.draw(bulbGlow, MathUtils.floor(bx - 5f), MathUtils.floor(by - 5f), 10f, 10f);
 
             batch.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
-            batch.setColor(1f, 1f, 1f, 0.96f * intensity);
+            batch.setColor(1f, 0.98f, 0.88f, 0.96f * intensity);
             batch.draw(bulbLit, MathUtils.floor(bx - 3f), MathUtils.floor(by - 3f), 6f, 6f);
+        }
+        batch.setColor(Color.WHITE);
+    }
+
+    private void drawDustAndNuggetSparkles(SpriteBatch batch, Texture white) {
+        // Gentle drifting warm sun-dust motes (zero GC)
+        for (int i = 0; i < DUST_COUNT; i++) {
+            float speedX = 0.011f + (i % 3) * 0.004f;
+            float speedY = 0.016f + (i % 4) * 0.005f;
+            float nx = (dustNx[i] + elapsedTime * speedX + 0.015f * MathUtils.sin(elapsedTime * 1.1f + dustPhase[i])) % 1.0f;
+            float ny = (dustNy[i] + elapsedTime * speedY) % 0.88f + 0.08f;
+            float alpha = 0.16f + 0.18f * (0.5f + 0.5f * MathUtils.sin(elapsedTime * 2.2f + dustPhase[i]));
+            float size = (i % 3 == 0) ? 2f : 1f;
+            batch.setColor(1.00f, 0.93f, 0.66f, alpha);
+            batch.draw(white, MathUtils.floor(viewLeft + nx * viewWidth), MathUtils.floor(viewBottom + ny * viewHeight), size, size);
+        }
+
+        // 3 blinking 4-point pixel sparkles on the miner's gold nugget
+        for (int i = 0; i < NUGGET_SPARK_NX.length; i++) {
+            float blink = MathUtils.sin(elapsedTime * 3.1f + NUGGET_SPARK_PHASE[i]);
+            if (blink <= 0.15f) {
+                continue;
+            }
+            float strength = MathUtils.clamp((blink - 0.15f) / 0.85f, 0f, 1f);
+            int sx = MathUtils.floor(bgDrawX + NUGGET_SPARK_NX[i] * bgDrawW);
+            int sy = MathUtils.floor(bgDrawY + NUGGET_SPARK_NY[i] * bgDrawH);
+            int arm = strength > 0.65f ? 2 : 1;
+            batch.setColor(1.00f, 0.98f, 0.78f, 0.92f * strength);
+            batch.draw(white, sx, sy, 1f, 1f);
+            batch.draw(white, sx - arm, sy, arm * 2 + 1f, 1f);
+            batch.draw(white, sx, sy - arm, 1f, arm * 2 + 1f);
         }
         batch.setColor(Color.WHITE);
     }
@@ -466,8 +523,10 @@ public class MainMenuScreen implements Screen {
         batch.setColor(COL_POST_HI);
         batch.draw(white, postX + 1f, 24f, 1f, 26f);
 
-        float breathe = 0.5f + 0.5f * (float) Math.sin(elapsedTime * 3.8f);
-        float scale = 1.0f + 0.04f * playHoverAlpha;
+        float idlePulse = 0.5f + 0.5f * MathUtils.sin(elapsedTime * 3.0f);
+        float breathe = 0.5f + 0.5f * MathUtils.sin(elapsedTime * 3.8f);
+        float idleScale = 1.0f + 0.025f * idlePulse;
+        float scale = MathUtils.lerp(idleScale, 1.05f, playHoverAlpha);
 
         float centerX = PLAY_X + PLAY_W * 0.5f;
         float centerY = PLAY_Y + PLAY_H * 0.5f;
@@ -475,19 +534,13 @@ public class MainMenuScreen implements Screen {
         float drawH = PLAY_H * scale;
         float drawX = centerX - drawW * 0.5f;
         float drawY = centerY - drawH * 0.5f;
-        if (playHoverAlpha < 0.005f) {
-            drawX = MathUtils.floor(PLAY_X);
-            drawY = MathUtils.floor(PLAY_Y);
-            drawW = PLAY_W;
-            drawH = PLAY_H;
-        }
 
-        // Subtle warm golden underlay halo BEHIND PLAY button on hover (alpha <= 0.22, never overlays button face)
+        // Subtle warm golden underlay halo BEHIND PLAY button on hover (alpha <= 0.24, never overlays button face)
         if (playHoverAlpha > 0.01f) {
             Texture glowTex = assets.getTexture(AssetKey.BTN_PLAY_GLOW);
             float glowW = drawW * PLAY_GLOW_SCALE_W;
             float glowH = drawH * PLAY_GLOW_SCALE_H;
-            batch.setColor(1f, 0.90f, 0.48f, (0.14f + 0.08f * breathe) * playHoverAlpha);
+            batch.setColor(1f, 0.90f, 0.48f, (0.14f + 0.10f * breathe) * playHoverAlpha);
             batch.draw(glowTex, MathUtils.floor(centerX - glowW * 0.5f), MathUtils.floor(centerY - glowH * 0.5f), glowW, glowH);
         }
 
