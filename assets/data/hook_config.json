@@ -1,0 +1,16 @@
+{
+"swingMaxAngleDeg": 80,
+"swingPeriodSec": 5.556,
+"extendSpeed": 106.6,
+"emptyRetractSpeed": 242.2,
+"retractSpeedPerStrengthUnit": 15.14,
+"baseMinerStrength": 10,
+"cartSpeed": 24.3,
+"hookTipRadius": 5,
+"restCableLength": 12,
+"maxCableLength": 270,
+"tntBlastRadius": 40.5,
+"countdownWarningSec": 5,
+"defaultDurationSec": 60,
+"startingDynamite": 3
+}
