@@ -143,9 +143,6 @@ public class ShopScreen implements Screen {
     }
 
     private void handleHoverAndInput() {
-        if (Gdx.input.isKeyJustPressed(Input.Keys.F11)) {
-            game.toggleFullscreen();
-        }
         touchPoint.set(Gdx.input.getX(), Gdx.input.getY(), 0f);
         viewport.unproject(touchPoint);
 
@@ -157,15 +154,18 @@ public class ShopScreen implements Screen {
             }
         }
 
-        if (Gdx.input.isKeyJustPressed(Input.Keys.ENTER) || Gdx.input.isKeyJustPressed(Input.Keys.SPACE)
-            || Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+        if (Gdx.input.isKeyJustPressed(Input.Keys.ENTER) || Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
+            game.continueMapLevelFromShop(nextLevelNumber);
+            return;
+        }
+        if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
             game.showWorldMap(nextLevelNumber);
             return;
         }
 
         if (Gdx.input.justTouched()) {
             if (nextLevelButton.contains(touchPoint.x, touchPoint.y)) {
-                game.showWorldMap(nextLevelNumber);
+                game.continueMapLevelFromShop(nextLevelNumber);
                 return;
             }
             if (menuButton.contains(touchPoint.x, touchPoint.y)) {

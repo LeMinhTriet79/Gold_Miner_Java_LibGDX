@@ -116,6 +116,18 @@ public class RunSession {
     }
 
     /**
+     * Continues seamlessly from {@link com.minhtriet79.goldminer.screens.ShopScreen} into the next map level,
+     * preserving remaining {@code mineMoney}, {@code dynamiteCount}, and all purchased Shop buffs.
+     */
+    public void prepareContinueMapLevel(int levelNumber, int fixedGoal, int durationSec) {
+        this.currentLevel = Math.max(1, Math.min(MAX_W1_LEVEL, levelNumber));
+        this.collectedGemsMask = 0;
+        this.settled = false;
+        this.goal = Math.max(50, fixedGoal);
+        resetLevelTimer(Math.max(10, durationSec) + extraTimeSeconds);
+    }
+
+    /**
      * Configures an immediate Studio Play Test run preserving the exact edited goal and timer.
      */
     public void prepareCustomPlayTest(int levelNumber, int customGoal, int customDurationSec) {

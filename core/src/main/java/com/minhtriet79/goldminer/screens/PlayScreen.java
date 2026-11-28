@@ -72,9 +72,20 @@ public class PlayScreen implements Screen {
     private static final float CLAW_WORLD_SCALE = 0.56f;
     private static final float TOTAL_SIGN_CENTER_X = 616f / SX;
     private static final float TOTAL_SIGN_CENTER_Y = (552f - MINE_SCREEN_BOTTOM) / SY;
+    private static final float MINER_CART_DRAW_H = 88f;
+    private static final float MINER_CART_DRAW_W = 66f;
+    private static final float MINER_CART_BOTTOM_Y = 414f;
+    private static final float WINCH_OFFSET_Y = MINER_CART_DRAW_H * 0.42f;
+    private static final Color COL_TOTAL_GOAL_MET = new Color(0.05f, 0.52f, 0.06f, 1f);
+    private static final Color COL_TOTAL_NORMAL = new Color(0.25f, 0.10f, 0.02f, 1f);
+    private static final Color COL_TNT_FLASH = new Color(1.0f, 0.34f, 0.08f, 1f);
+    private static final Color COL_CART_BADGE_BG = new Color(0.18f, 0.05f, 0.02f, 0.88f);
+    private static final Color COL_SPARKLE_GOLD = new Color(1.0f, 0.92f, 0.32f, 1f);
+    private static final Color COL_WHEEL_DUST = new Color(0.84f, 0.72f, 0.52f, 1f);
 
     private static final int MAX_EXPLOSIONS = 24;
     private static final int MAX_FLOATING_TEXTS = 24;
+    private static final int MAX_WHEEL_DUST = 10;
 
     private final GoldMinerGame game;
     private final String levelFileName;
@@ -125,6 +136,12 @@ public class PlayScreen implements Screen {
     private boolean cartMovingToClick;
     private float cartSfxTimer;
     private int cartSfxStep;
+    private float cartRollDistancePx;
+    private boolean cartMovingThisFrame;
+    private float wheelDustTimer;
+    private final float[] dustX = new float[MAX_WHEEL_DUST];
+    private final float[] dustY = new float[MAX_WHEEL_DUST];
+    private final float[] dustLife = new float[MAX_WHEEL_DUST];
 
     private String activeMinerAnimKey = AssetKey.MINER_IDLE;
     private float minerAnimTime;
@@ -132,6 +149,9 @@ public class PlayScreen implements Screen {
     private float throwAnimTimer;
     private float strengthAnimTimer;
     private float timerPulseTimer;
+    private float tntFlashTimer;
+    private float collectSparkleTimer;
+    private float happyTimer;
     private boolean paused;
     private boolean helpOpen;
     private boolean transitionTriggered;
@@ -154,15 +174,20 @@ public class PlayScreen implements Screen {
 
     public static PlayScreen forMapLevel(GoldMinerGame game, int levelNumber) {
         int clamped = Math.max(1, Math.min(RunSession.MAX_W1_LEVEL, levelNumber));
-        return new PlayScreen(game, clamped, "level_" + clamped + ".json", null, true);
+        return new PlayScreen(game, clamped, "level_" + clamped + ".json", null, true, false);
+    }
+
+    public static PlayScreen forContinuedMapLevel(GoldMinerGame game, int levelNumber) {
+        int clamped = Math.max(1, Math.min(RunSession.MAX_W1_LEVEL, levelNumber));
+        return new PlayScreen(game, clamped, "level_" + clamped + ".json", null, true, true);
     }
 
     public PlayScreen(GoldMinerGame game, int levelNumber) {
-        this(game, levelNumber, "level_" + levelNumber + ".json", null, false);
+        this(game, levelNumber, "level_" + levelNumber + ".json", null, false, false);
     }
 
     public PlayScreen(GoldMinerGame game, int levelNumber, String levelFileName, Runnable backToStudioAction) {
-        this(game, levelNumber, levelFileName, backToStudioAction, false);
+        this(game, levelNumber, levelFileName, backToStudioAction, false, false);
     }
 
     private PlayScreen(
@@ -170,7 +195,8 @@ public class PlayScreen implements Screen {
         int levelNumber,
         String levelFileName,
         Runnable backToStudioAction,
-        boolean mapMode
+        boolean mapMode,
+        boolean continueRun
     ) {
         this.game = game;
         this.levelFileName = (levelFileName == null || levelFileName.isEmpty())
@@ -193,7 +219,11 @@ public class PlayScreen implements Screen {
             run.prepareCustomPlayTest(levelNumber, levelConfig.goal, customDur);
         } else if (mapMode) {
             int dur = levelConfig.durationSeconds > 0 ? levelConfig.durationSeconds : hookConfig.defaultDurationSec;
-            run.prepareMapLevel(levelNumber, RunSession.mapTargetForLevel(levelNumber), dur);
+            if (continueRun) {
+                run.prepareContinueMapLevel(levelNumber, RunSession.mapTargetForLevel(levelNumber), dur);
+            } else {
+                run.prepareMapLevel(levelNumber, RunSession.mapTargetForLevel(levelNumber), dur);
+            }
         } else {
             run.prepareLevel(levelNumber, levelConfig.levelValue);
             if (levelConfig.durationSeconds > 0 && levelConfig.durationSeconds != 60) {
@@ -310,10 +340,6 @@ public class PlayScreen implements Screen {
     private boolean handleInput() {
         RunSession run = game.getRunSession();
 
-        if (Gdx.input.isKeyJustPressed(Input.Keys.F11)) {
-            game.toggleFullscreen();
-            return false;
-        }
         if (helpOpen) {
             if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE) || Gdx.input.isKeyJustPressed(Input.Keys.H)
                 || Gdx.input.isKeyJustPressed(Input.Keys.ENTER) || Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
@@ -542,6 +568,21 @@ public class PlayScreen implements Screen {
         if (timerPulseTimer > 0f) {
             timerPulseTimer = Math.max(0f, timerPulseTimer - dt);
         }
+        if (tntFlashTimer > 0f) {
+            tntFlashTimer = Math.max(0f, tntFlashTimer - dt);
+        }
+        if (collectSparkleTimer > 0f) {
+            collectSparkleTimer = Math.max(0f, collectSparkleTimer - dt);
+        }
+        if (happyTimer > 0f) {
+            happyTimer = Math.max(0f, happyTimer - dt);
+        }
+        for (int i = 0; i < MAX_WHEEL_DUST; i++) {
+            if (dustLife[i] > 0f) {
+                dustLife[i] = Math.max(0f, dustLife[i] - dt);
+                dustY[i] += 14f * dt;
+            }
+        }
         if (mysteryBannerTimer > 0f) {
             mysteryBannerTimer = Math.max(0f, mysteryBannerTimer - dt);
         }
@@ -571,7 +612,8 @@ public class PlayScreen implements Screen {
             if (blasted != null) {
                 pendingMysteryOutcome = null;
                 spawnExplosionAndSmoke(hook.getTip().x, hook.getTip().y);
-                screenShake.trigger(3.8f, 0.28f);
+                screenShake.trigger(3.8f, 0.22f);
+                tntFlashTimer = 0.22f;
                 spawnFloatingText("BOOM!", hook.getTip().x, hook.getTip().y + 10f, Color.ORANGE, 0.85f);
                 playSound(AssetKey.SFX_EXPLOSION, 0.85f);
             }
@@ -655,6 +697,7 @@ public class PlayScreen implements Screen {
     private void updateCartMovement(float dt, RunSession run) {
         if (hook.getState() != HookState.SWINGING) {
             cartMovingToClick = false;
+            cartMovingThisFrame = false;
             return;
         }
 
@@ -683,17 +726,40 @@ public class PlayScreen implements Screen {
             }
         }
 
-        if (Math.abs(cartX - prevCartX) > 0.001f) {
+        float movedUnits = Math.abs(cartX - prevCartX);
+        if (movedUnits > 0.001f) {
+            cartMovingThisFrame = true;
+            cartRollDistancePx += movedUnits * SX;
+            wheelDustTimer -= dt;
+            if (wheelDustTimer <= 0f) {
+                wheelDustTimer = 0.07f;
+                float dirSign = cartX >= prevCartX ? 1f : -1f;
+                float trailingWheelX = toScreenX(cartX) - dirSign * (MINER_CART_DRAW_W * 0.28f);
+                spawnWheelDust(trailingWheelX);
+            }
             cartSfxTimer -= dt;
             if (cartSfxTimer <= 0f) {
                 cartSfxTimer = 0.28f;
                 playCartRollSfx();
             }
         } else {
+            cartMovingThisFrame = false;
+            wheelDustTimer = 0f;
             cartSfxTimer = 0f;
         }
 
         hook.setPivotX(cartX);
+    }
+
+    private void spawnWheelDust(float screenX) {
+        for (int i = 0; i < MAX_WHEEL_DUST; i++) {
+            if (dustLife[i] <= 0f) {
+                dustX[i] = screenX + MathUtils.random(-3f, 3f);
+                dustY[i] = MINER_CART_BOTTOM_Y + 2f;
+                dustLife[i] = 0.28f;
+                return;
+            }
+        }
     }
 
     private void playCartRollSfx() {
@@ -804,7 +870,8 @@ public class PlayScreen implements Screen {
         int queueTail = 0;
 
         spawnExplosionAndSmoke(originX, originY);
-        screenShake.trigger(4.2f, 0.36f);
+        screenShake.trigger(4.2f, 0.22f);
+        tntFlashTimer = 0.22f;
         playSound(AssetKey.SFX_EXPLOSION, 0.9f);
         queueTail = enqueueExplosionSweep(originX, originY, hookConfig.tntBlastRadius, queueTail);
 
@@ -899,6 +966,8 @@ public class PlayScreen implements Screen {
     private void awardMoney(int amount, String sfxKey) {
         game.getRunSession().addMineMoney(amount);
         earnedThisLevel += amount;
+        happyTimer = 0.45f;
+        collectSparkleTimer = 0.45f;
         spawnFlyToTotalText("+$" + amount, cartX, WorldBounds.TRACK_Y + 32f, Color.GOLD);
         playSound(sfxKey, 0.8f);
     }
@@ -1024,7 +1093,7 @@ public class PlayScreen implements Screen {
         batch.draw(track, 0f, 408f, 800f, 73f);
         batch.draw(sky, 0f, 497f, 800f, 103f);
 
-        // 2. Mine items & animated creatures
+        // 2. Mine items & animated creatures (strict 1:1 natural texture aspect ratio, zero distortion)
         for (int i = 0; i < items.size; i++) {
             MineItem item = items.get(i);
             if (!item.active) {
@@ -1033,10 +1102,10 @@ public class PlayScreen implements Screen {
             float ix = toScreenX(item.bounds.x);
             float iy = toScreenY(item.bounds.y);
             float iw = item.drawWidth * SX;
-            float ih = item.drawHeight * SY;
             if (item.animated) {
                 Animation<TextureRegion> anim = assets.getAnimation(item.assetKey);
                 TextureRegion frame = anim.getKeyFrame(item.animTime, true);
+                float ih = iw * ((float) frame.getRegionHeight() / frame.getRegionWidth());
                 batch.draw(
                     frame,
                     ix - iw * 0.5f,
@@ -1051,26 +1120,83 @@ public class PlayScreen implements Screen {
                 );
             } else {
                 Texture tex = assets.getTexture(item.assetKey);
+                float ih = iw * ((float) tex.getHeight() / tex.getWidth());
                 batch.draw(tex, ix - iw * 0.5f, iy - ih * 0.5f, iw, ih);
             }
         }
 
-        // 3. Miner (spool-anchored proportionally) & Cart
-        float minerW = minerDef.drawWidth * SX;
-        float minerH = minerDef.drawHeight * SY;
-        float minerDrawX = toScreenX(cartX) - minerW * minerDef.anchorX;
-        float minerDrawY = toScreenY(WorldBounds.TRACK_Y + 11f) - minerH * minerDef.anchorY;
-        batch.draw(minerFrame, minerDrawX, minerDrawY, minerW, minerH);
-
-        float cartW = CART_DRAW_WIDTH * SX;
-        float cartH = CART_DRAW_HEIGHT * SY;
+        // 3. 2D Pixel-Locked Miner + Red Cart (zero cart shake, wheel roll, crank pull, happy celebrate)
+        float cartDrawX = toScreenX(cartX) - MINER_CART_DRAW_W * 0.5f;
+        float cartDrawY = MINER_CART_BOTTOM_Y;
+        float cartScreenX = cartDrawX + MINER_CART_DRAW_W * 0.50f;
+        MineItem attached = hook.getAttachedItem();
+        boolean pullingItem = hook.getState() == HookState.RETRACTING && attached != null;
+        Texture minerCartTex;
+        if (pullingItem) {
+            boolean heavyItem = attached.getEffectiveWeight() >= 5
+                || (attached.type != null && (attached.type.contains("large") || "gold_mega".equals(attached.type)));
+            float frameDur = heavyItem ? 0.20f : 0.12f;
+            int pullIdx = ((int) (fxTime / frameDur)) % 2;
+            minerCartTex = assets.getTexture(pullIdx == 0 ? AssetKey.MINER_CART_PULL_1 : AssetKey.MINER_CART_PULL_2);
+        } else if (happyTimer > 0f) {
+            minerCartTex = assets.getTexture(AssetKey.MINER_CART_HAPPY);
+        } else if (cartMovingThisFrame) {
+            int rollIdx = ((int) (cartRollDistancePx / 9f)) % 2;
+            minerCartTex = assets.getTexture(rollIdx == 0 ? AssetKey.MINER_CART_IDLE : AssetKey.MINER_CART_ROLL);
+        } else {
+            minerCartTex = assets.getTexture(AssetKey.MINER_CART_IDLE);
+        }
         batch.draw(
-            cart,
-            toScreenX(cartX) - cartW * 0.5f,
-            toScreenY(WorldBounds.TRACK_Y + 2f),
-            cartW,
-            cartH
+            minerCartTex,
+            cartDrawX,
+            cartDrawY,
+            MINER_CART_DRAW_W,
+            MINER_CART_DRAW_H
         );
+
+        // Wheel rolling dust specks along the silver track
+        Texture whitePx = game.getWhitePixel();
+        for (int i = 0; i < MAX_WHEEL_DUST; i++) {
+            if (dustLife[i] > 0f) {
+                float alpha = MathUtils.clamp(dustLife[i] / 0.28f, 0f, 1f) * 0.78f;
+                batch.setColor(COL_WHEEL_DUST.r, COL_WHEEL_DUST.g, COL_WHEEL_DUST.b, alpha);
+                float sz = 3.5f * (0.5f + alpha * 0.5f);
+                batch.draw(whitePx, dustX[i] - sz * 0.5f, dustY[i], sz, sz);
+            }
+        }
+        batch.setColor(Color.WHITE);
+
+        // Compact Dynamite Count Badge tucked in bottom-right corner of red cart body (clear of center hook)
+        int cartDynCount = run.getDynamiteCount();
+        if (cartDynCount > 0) {
+            float badgeX = cartDrawX + MINER_CART_DRAW_W - 24f;
+            float badgeY = cartDrawY + 12f;
+            batch.setColor(COL_CART_BADGE_BG);
+            batch.draw(whitePx, badgeX, badgeY, 22f, 13f);
+            batch.setColor(Color.WHITE);
+            batch.draw(assets.getTexture(AssetKey.UI_DYNAMITE_ICON), badgeX + 2f, badgeY + 1f, 6f, 11f);
+            BitmapFont tiny = game.getPlaySmallFont();
+            tiny.getData().setScale(0.72f);
+            tiny.setColor(Color.GOLD);
+            tiny.draw(batch, Integer.toString(cartDynCount), badgeX + 9f, badgeY + 10.5f);
+            tiny.getData().setScale(1.0f);
+        }
+
+        // Golden Sparkle Burst around cart when collecting gold / diamonds / gems
+        if (collectSparkleTimer > 0f) {
+            float progress = 1f - (collectSparkleTimer / 0.45f);
+            float alpha = MathUtils.clamp(collectSparkleTimer / 0.45f, 0f, 1f);
+            batch.setColor(COL_SPARKLE_GOLD.r, COL_SPARKLE_GOLD.g, COL_SPARKLE_GOLD.b, alpha);
+            for (int sp = 0; sp < 6; sp++) {
+                float ang = sp * 60f + progress * 90f;
+                float dist = 16f + progress * 28f;
+                float sx = cartScreenX + MathUtils.cosDeg(ang) * dist;
+                float sy = MINER_CART_BOTTOM_Y + 46f + MathUtils.sinDeg(ang) * dist * 0.7f;
+                float sz = 4.5f * (1f - progress * 0.5f);
+                batch.draw(whitePx, sx - sz * 0.5f, sy - sz * 0.5f, sz * 0.5f, sz * 0.5f, sz, sz, 1f, 1f, 45f, 0, 0, 1, 1, false, false);
+            }
+            batch.setColor(Color.WHITE);
+        }
 
         // 4. Cable, Laser sightline, Held item, Claw, and Flying Dynamite
         drawCableAndHook(batch, assets, run);
@@ -1109,6 +1235,14 @@ public class PlayScreen implements Screen {
             );
         }
 
+        // Brief red-orange TNT flash overlay inside hollow playfield (~0.22s)
+        if (tntFlashTimer > 0f) {
+            float flashAlpha = (tntFlashTimer / 0.22f) * 0.26f;
+            batch.setColor(COL_TNT_FLASH.r, COL_TNT_FLASH.g, COL_TNT_FLASH.b, flashAlpha);
+            batch.draw(whitePx, HOLLOW_LEFT, HOLLOW_BOTTOM, HOLLOW_RIGHT - HOLLOW_LEFT, HOLLOW_TOP - HOLLOW_BOTTOM);
+            batch.setColor(Color.WHITE);
+        }
+
         // 6. Rounded Golden Vegas Frame & 44px Bottom Control Bar
         drawVegasFrameAndBottomBar(batch, assets);
 
@@ -1138,10 +1272,27 @@ public class PlayScreen implements Screen {
     private void drawCableAndHook(SpriteBatch batch, Assets assets, RunSession run) {
         Vector2 pivot = hook.getPivot();
         Vector2 tip = hook.getTip();
-        float px = toScreenX(pivot.x);
-        float py = toScreenY(pivot.y);
-        float tx = toScreenX(tip.x);
-        float ty = toScreenY(tip.y);
+        float cartDrawX = toScreenX(pivot.x) - MINER_CART_DRAW_W * 0.5f;
+        float cartDrawY = MINER_CART_BOTTOM_Y;
+        float px = cartDrawX + MINER_CART_DRAW_W * 0.50f;
+        float py = cartDrawY + WINCH_OFFSET_Y;
+
+        float angleRad = hook.getAngleDeg() * MathUtils.degreesToRadians;
+        float idleLen = hookConfig.restCableLength * SY;
+        float restTx = px + MathUtils.sin(angleRad) * idleLen;
+        float restTy = py - MathUtils.cos(angleRad) * idleLen;
+        float tx;
+        float ty;
+        if (hook.getState() == HookState.SWINGING) {
+            tx = restTx;
+            ty = restTy;
+        } else {
+            float worldTx = toScreenX(tip.x);
+            float worldTy = toScreenY(tip.y);
+            float blend = MathUtils.clamp((hook.getCableLength() - hookConfig.restCableLength) / 22f, 0f, 1f);
+            tx = MathUtils.lerp(restTx, worldTx, blend);
+            ty = MathUtils.lerp(restTy, worldTy, blend);
+        }
         cableDelta.set(tx - px, ty - py);
         float len = cableDelta.len();
         float visualAngleDeg = cableDelta.angleDeg() + 90f;
@@ -1194,26 +1345,30 @@ public class PlayScreen implements Screen {
         );
         batch.setColor(Color.WHITE);
 
-        // Held item tucked tightly in claw jaws along rope direction
+        // Held item tucked tightly in claw jaws along rope direction (1:1 aspect ratio)
         MineItem held = hook.getAttachedItem();
         if (held != null) {
             float rad = visualAngleDeg * MathUtils.degreesToRadians;
             float iw = held.drawWidth * SX;
-            float ih = held.drawHeight * SY;
-            float offset = 8f + ih * 0.32f;
-            float itemCx = tx + MathUtils.sin(rad) * offset;
-            float itemCy = ty - MathUtils.cos(rad) * offset;
             if (held.animated) {
                 Animation<TextureRegion> anim = assets.getAnimation(held.assetKey);
                 TextureRegion frame = anim.getKeyFrame(fxTime, true);
+                float ih = iw * ((float) frame.getRegionHeight() / frame.getRegionWidth());
+                float offset = 8f + ih * 0.32f;
+                float itemCx = tx + MathUtils.sin(rad) * offset;
+                float itemCy = ty - MathUtils.cos(rad) * offset;
                 batch.draw(frame, itemCx - iw * 0.5f, itemCy - ih * 0.5f, iw, ih);
             } else {
                 Texture heldTex = assets.getTexture(held.assetKey);
+                float ih = iw * ((float) heldTex.getHeight() / heldTex.getWidth());
+                float offset = 8f + ih * 0.32f;
+                float itemCx = tx + MathUtils.sin(rad) * offset;
+                float itemCy = ty - MathUtils.cos(rad) * offset;
                 batch.draw(heldTex, itemCx - iw * 0.5f, itemCy - ih * 0.5f, iw, ih);
             }
         }
 
-        // Exact Claw state texture pivoted cleanly at top-center (cable attachment point)
+        // Exact Claw state texture pivoted cleanly at top-center (cable attachment point, 1:1 aspect ratio)
         int clawIdx = Math.max(0, Math.min(3, run.getActiveClaw().id - 1));
         int stateIdx = switch (hook.getState()) {
             case SWINGING -> 0;
@@ -1222,7 +1377,7 @@ public class PlayScreen implements Screen {
         };
         TextureRegion clawRegion = clawRegions[clawIdx][stateIdx];
         float clawW = clawRegion.getRegionWidth() * CLAW_WORLD_SCALE * SX;
-        float clawH = clawRegion.getRegionHeight() * CLAW_WORLD_SCALE * SY;
+        float clawH = clawW * ((float) clawRegion.getRegionHeight() / clawRegion.getRegionWidth());
         batch.draw(
             clawRegion,
             tx - clawW * 0.5f,
@@ -1309,7 +1464,7 @@ public class PlayScreen implements Screen {
         playHud.draw(batch, goalText, 480f, 558f, 58f, Align.center, false);
 
         // TOTAL wooden sign on bg_sky_w1 (green highlight once target reached)
-        playHud.setColor(run.isGoalMet() ? new Color(0.05f, 0.52f, 0.06f, 1f) : new Color(0.25f, 0.10f, 0.02f, 1f));
+        playHud.setColor(run.isGoalMet() ? COL_TOTAL_GOAL_MET : COL_TOTAL_NORMAL);
         playHud.draw(batch, scoreText, 584f, 554f, 66f, Align.center, false);
 
         // Clean round black TIMER stone dial centered via GlyphLayout (circle center ~ 695, 549)

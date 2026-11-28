@@ -363,6 +363,11 @@ public class GoldMinerGame extends Game {
         transitionToScreen(PlayScreen.forMapLevel(this, clamped));
     }
 
+    public void continueMapLevelFromShop(int nextLevelNumber) {
+        int clamped = Math.max(1, Math.min(RunSession.MAX_W1_LEVEL, nextLevelNumber));
+        transitionToScreen(PlayScreen.forContinuedMapLevel(this, clamped));
+    }
+
     public void startLevelPlayTest(String levelFileName, Runnable backToStudioAction) {
         int levelNum = StudioFileHelper.parseLevelNumber(levelFileName);
         runSession.startNewRun();

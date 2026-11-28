@@ -26,6 +26,11 @@ public final class AssetKey {
 
     // Cart & 4 Claws (Swing/Closed, Extend/Open, Retract/Closed)
     public static final String CART_STANDARD = "cart_standard";
+    public static final String MINER_CART_IDLE = "miner_cart_idle";
+    public static final String MINER_CART_ROLL = "miner_cart_roll";
+    public static final String MINER_CART_PULL_1 = "miner_cart_pull_1";
+    public static final String MINER_CART_PULL_2 = "miner_cart_pull_2";
+    public static final String MINER_CART_HAPPY = "miner_cart_happy";
     public static final String HOOK_CLAW = "hook_claw";
 
     public static String clawKey(int clawId, String stateSuffix) {

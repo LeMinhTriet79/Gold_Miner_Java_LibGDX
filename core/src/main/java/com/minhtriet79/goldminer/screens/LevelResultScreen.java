@@ -83,8 +83,8 @@ public class LevelResultScreen implements Screen {
         AccountService svc = game.getAccountService();
         if (passed) {
             this.coinsAwarded = svc != null
-                ? svc.recordLevelWin(finishedLevel, totalMoney)
-                : (Math.max(0, totalMoney) / 10);
+                ? svc.recordLevelWin(finishedLevel, earnedThisLevel)
+                : (Math.max(0, earnedThisLevel) / 10);
             this.unlockedNextLevel = Math.min(RunSession.MAX_W1_LEVEL, finishedLevel + 1);
 
             AccountRecord active = svc != null ? svc.getActiveAccount() : null;
@@ -97,7 +97,7 @@ public class LevelResultScreen implements Screen {
                 ? "Ví: " + nf.format(wallet) + " XU   |   Đã mở khóa Màn " + unlockedNextLevel + "!"
                 : "Ví: " + nf.format(wallet) + " XU   |   Đã chinh phục World 1 Australia!";
             this.leftBtnLabel = "WORLD MAP";
-            this.rightBtnLabel = "CONTINUE";
+            this.rightBtnLabel = finishedLevel >= RunSession.MAX_W1_LEVEL ? "HOÀN TẤT" : "CONTINUE";
         } else {
             this.coinsAwarded = 0;
             this.unlockedNextLevel = finishedLevel;
@@ -128,9 +128,6 @@ public class LevelResultScreen implements Screen {
     @Override
     public void render(float rawDt) {
         Math.min(rawDt, 0.05f);
-        if (Gdx.input.isKeyJustPressed(Input.Keys.F11)) {
-            game.toggleFullscreen();
-        }
 
         touchPoint.set(Gdx.input.getX(), Gdx.input.getY(), 0f);
         viewport.unproject(touchPoint);
@@ -225,7 +222,11 @@ public class LevelResultScreen implements Screen {
 
     private void triggerPrimaryAction() {
         if (passed) {
-            game.showShopFromLevelWin(finishedLevel);
+            if (finishedLevel >= RunSession.MAX_W1_LEVEL) {
+                game.showWorldMap(RunSession.MAX_W1_LEVEL);
+            } else {
+                game.showShopFromLevelWin(finishedLevel);
+            }
         } else {
             game.startMapLevel(finishedLevel);
         }

@@ -66,4 +66,28 @@ class RunSessionTest {
         assertTrue(ClawType.isKnockedBackBySpike(21));
         assertTrue(ClawType.isKnockedBackBySpike(27));
     }
+
+    @Test
+    void prepareContinueMapLevelPreservesRemainingMoneyDynamiteAndShopBuffs() {
+        RunSession run = new RunSession();
+        run.prepareMapLevel(1, 555, 60);
+        run.addMineMoney(900);
+        run.addDynamite(2); // 3 -> 5
+        run.finishLevel(true);
+
+        // Simulate buying Strength Drink (+2 -> 12), Pocket Watch (+15s), and Dynamite (+1 -> 6) at Shop
+        run.spendMineMoney(200);
+        run.addStrength(2);
+        run.activatePocketWatch();
+        run.addDynamite(1);
+
+        run.prepareContinueMapLevel(2, 1150, 60);
+
+        assertEquals(2, run.getCurrentLevel());
+        assertEquals(1150, run.getGoal());
+        assertEquals(700, run.getMineMoney());
+        assertEquals(6, run.getDynamiteCount());
+        assertEquals(12, run.getMinerStrength());
+        assertEquals(75f, run.getTimeRemaining(), 0.001f);
+    }
 }

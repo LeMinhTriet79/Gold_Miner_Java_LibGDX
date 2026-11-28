@@ -31,6 +31,8 @@ public class SettlementScreen implements Screen {
 
     private static final float VEGAS_W = 800f;
     private static final float VEGAS_H = 600f;
+    private static final Color COL_WIN_BANNER = new Color(0.08f, 0.45f, 0.08f, 1f);
+    private static final Color COL_END_BANNER = new Color(0.35f, 0.14f, 0.03f, 1f);
 
     private final GoldMinerGame game;
     private final OrthographicCamera camera;
@@ -64,9 +66,6 @@ public class SettlementScreen implements Screen {
     @Override
     public void render(float rawDt) {
         Math.min(rawDt, 0.05f);
-        if (Gdx.input.isKeyJustPressed(Input.Keys.F11)) {
-            game.toggleFullscreen();
-        }
         handleInput();
 
         ScreenUtils.clear(0f, 0f, 0f, 1f);
@@ -90,7 +89,7 @@ public class SettlementScreen implements Screen {
         batch.begin();
         batch.draw(bg, 0f, 0f, VEGAS_W, VEGAS_H);
 
-        banner.setColor(summary.completedWorld1 ? new Color(0.08f, 0.45f, 0.08f, 1f) : new Color(0.35f, 0.14f, 0.03f, 1f));
+        banner.setColor(summary.completedWorld1 ? COL_WIN_BANNER : COL_END_BANNER);
         String title = summary.completedWorld1 ? "CHINH PHUC WORLD 1 AUSTRALIA!" : "KET TOAN CHUYEN DAO VANG";
         banner.draw(batch, title, 140f, 456f, 520f, Align.center, false);
 
